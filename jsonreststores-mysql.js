@@ -363,9 +363,11 @@ const Mixin = (superclass) => class extends superclass {
   // Output: an object (saved record)
   //
   // SIDE_EFFECT:
-  //   request.body[beforeIdField]
-  //   request.params (whole object replaced by _validateParams)
+  //   request.body[beforeIdField] moved to request.beforeId
   //   request.body (with paramIds)
+  //   request.originalBody
+  //   request.params (whole object replaced by _validateParams)
+  //   request.originalParams (whole object replaced by _validateParams)
   async implementInsert (request) {
     this._checkVars()
 
@@ -378,6 +380,7 @@ const Mixin = (superclass) => class extends superclass {
     await this._calculatePosition(request)
 
     // validateParam
+    request.originalParams = request.params
     request.params = await this._validateParams(request)
 
     // Add paramIds to body
@@ -394,8 +397,12 @@ const Mixin = (superclass) => class extends superclass {
       onlyObjectValues: !request.options.fullRecordOnInsert || !this.fullRecordOnInsert
     })
 
+    request.originalBody = request.body
+    request.body = validatedObject
+    request.record = {}
+
     // Check for permissions
-    const { granted, message } = await this.checkPermissions(request, validatedObject, {})
+    const { granted, message } = await this.checkPermissions(request)
     if (!granted) throw new this.constructor.ForbiddenError(message)
 
     // Call the validate hook. This will carry more expensive validation once
@@ -413,16 +420,19 @@ const Mixin = (superclass) => class extends superclass {
     // The ID will be in insertResult.insertId
     const insertResult = await this.connection.queryP(query, [insertObject])
 
-    // After insert: post-processing of the record
-    await this.queryBuilder(request, 'insert', 'after')
-
     // Make up a bogus request (just with request.params using insertId)
     // to re-fetch the record and return it
     // NOTE: request.params is all implementFetch uses
     const bogusRequest = { options: {}, session: request.session, params: { [this.idProperty]: insertResult.insertId } }
-    const record = await this.implementFetch(bogusRequest)
+    request.record = await this.implementFetch(bogusRequest)
 
-    return record
+    // This could be useful to the 'after' hook
+    request.queryBuilderResult = { insertObject }
+
+    // After insert: post-processing of the record
+    await this.queryBuilder(request, 'insert', 'after')
+
+    return request.record
   }
 
   implementUpdateSql (joins, conditions) {
@@ -442,9 +452,11 @@ const Mixin = (superclass) => class extends superclass {
   //
   // SIDE_EFFECT:
   //   request.record (created)
+  //   request.originalRecord
   //   request.body[beforeIdField] (maybe deleted)
   //   request.params (whole object replaced by _validateParams())
   //   request.body (added paramIds)
+  //   request.originalBody
   async implementUpdate (request) {
     this._checkVars()
 
@@ -457,6 +469,7 @@ const Mixin = (superclass) => class extends superclass {
     await this._calculatePosition(request)
 
     // validateParam
+    request.originalParams = request.params
     request.params = await this._validateParams(request)
 
     const id = request.params[this.idProperty]
@@ -466,12 +479,8 @@ const Mixin = (superclass) => class extends superclass {
     this._enrichBodyWithParamIds(request)
 
     // Load the record, if it is not yet present in request as `record`
-    let record
-    if (request.record) {
-      record = request.record
-    } else {
-      // Fetch the record
-      record = await this.implementFetch(request) || null
+    if (!request.record) {
+      request.record = await this.implementFetch(request) || null
     }
 
     // This is an important hook as developers might want to
@@ -483,11 +492,14 @@ const Mixin = (superclass) => class extends superclass {
     const { validatedObject, errors } = await this.schema.validate(request.body, {
       emptyAsNull: request.options.emptyAsNull || this.emptyAsNull,
       onlyObjectValues: !request.options.fullRecordOnUpdate || !this.fullRecordOnUpdate,
-      record: record
+      record: request.record
     })
 
+    request.originalBody = request.body
+    request.body = validatedObject
+
     // Check for permissions
-    const { granted, message } = await this.checkPermissions(request, validatedObject, record)
+    const { granted, message } = await this.checkPermissions(request)
     if (!granted) throw new this.constructor.ForbiddenError(message)
 
     // Call the validate hook. This will carry more expensive validation once
@@ -512,12 +524,18 @@ const Mixin = (superclass) => class extends superclass {
     // Perform the update
     await this.connection.queryP(query, [updateObject, ...args])
 
+    // Re-fetch the record and return it
+    // NOTE: request.params is all implementFetch uses
+    request.originalRecord = request.record
+    request.record = this.implementFetch(request)
+
+    // This could be useful to the 'after' hook
+    request.queryBuilderResult = { updateObject, joins, conditions, args }
+
     // After update: post-processing of the record
     await this.queryBuilder(request, 'update', 'after')
 
-    // Re-fetch the record and return it
-    // NOTE: request.params is all implementFetch uses
-    return this.implementFetch(request)
+    return request.record
   }
 
   implementDeleteSql (tables, joins, conditions) {
@@ -540,16 +558,14 @@ const Mixin = (superclass) => class extends superclass {
     if (!id) throw new Error('request.params needs to contain idProperty for implementDelete')
 
     // Load the record, if it is not yet present in request as `record`
-    let record
-    if (request.record) {
-      record = request.record
-    } else {
-      // Fetch the record
-      record = await this.implementFetch(request) || null
+    if (!request.record) {
+      request.record = await this.implementFetch(request) || null
     }
+    request.body = {}
+    request.originalBody = {}
 
     // Check for permissions
-    const { granted, message } = await this.checkPermissions(request, record)
+    const { granted, message } = await this.checkPermissions(request)
     if (!granted) throw new this.constructor.ForbiddenError(message)
 
     // Get different select and different args if available
@@ -566,6 +582,9 @@ const Mixin = (superclass) => class extends superclass {
 
     // Perform the deletion
     await this.connection.queryP(query, args)
+
+    // This could be useful to the 'after' hook
+    request.queryBuilderResult = { tables, joins, conditions, args }
 
     // After insert: post-processing of the record
     await this.queryBuilder(request, 'delete', 'after')
@@ -650,8 +669,13 @@ const Mixin = (superclass) => class extends superclass {
     if (errors.length) throw new this.constructor.BadRequestError({ errors: errors })
     request.options.conditionsHash = validatedObject
 
+    // Stubs to avoid 981313 empty checks later
+    request.originalBody = {}
+    request.body = {}
+    request.record = {}
+
     // Check for permissions
-    const { granted, message } = await this.checkPermissions(request, validatedObject)
+    const { granted, message } = await this.checkPermissions(request)
     if (!granted) throw new this.constructor.ForbiddenError(message)
 
     // Get different select and different args if available
@@ -712,15 +736,16 @@ const Mixin = (superclass) => class extends superclass {
     const records = await this.connection.queryP(query, args)
 
     // Get the record
-    let record = records[0]
+    request.record = records[0]
 
     // Check for permissions
-    const { granted, message } = await this.checkPermissions(request, record)
+    const { granted, message } = await this.checkPermissions(request)
     if (!granted) throw new this.constructor.ForbiddenError(message)
 
     // Transform the record if necessary
     let transformed
-    if (record) transformed = await this.transformResult(request, 'fetch', record)
+    let record = request.record
+    if (record) transformed = await this.transformResult(request, 'fetch', request.record)
     if (transformed) record = transformed
 
     return record

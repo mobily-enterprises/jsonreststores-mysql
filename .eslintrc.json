@@ -1,5 +1,5 @@
 {
-  "extends": ["eslint:recommended", "standard"]
+  "extends": ["eslint:recommended", "standard"],
   "parserOptions": {
     "ecmaVersion": 2020
   },
