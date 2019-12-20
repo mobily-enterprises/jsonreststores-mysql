@@ -371,6 +371,8 @@ const Mixin = (superclass) => class extends superclass {
   async implementInsert (request) {
     this._checkVars()
 
+    request.inMethod = 'implementInsert'
+
     if (this.positionField) {
       request.beforeId = request.body[this.beforeIdField]
       delete request.body[this.beforeIdField]
@@ -459,6 +461,8 @@ const Mixin = (superclass) => class extends superclass {
   //   request.originalBody
   async implementUpdate (request) {
     this._checkVars()
+
+    request.inMethod = 'implementUpdate'
 
     if (this.positionField) {
       request.beforeId = request.body[this.beforeIdField]
@@ -553,6 +557,8 @@ const Mixin = (superclass) => class extends superclass {
   // Output: nothing
   async implementDelete (request) {
     this._checkVars()
+
+    request.inMethod = 'implementDelete'
 
     const id = request.params[this.idProperty]
     if (!id) throw new Error('request.params needs to contain idProperty for implementDelete')
@@ -657,6 +663,8 @@ const Mixin = (superclass) => class extends superclass {
   async implementQuery (request) {
     this._checkVars()
 
+    request.inMethod = 'implementQuery'
+
     request.options = { ...request.options }
 
     // Sanitise request.options.sort and request.options.ranges,
@@ -716,6 +724,8 @@ const Mixin = (superclass) => class extends superclass {
   // Output: an object
   async implementFetch (request) {
     this._checkVars()
+
+    request.inMethod = 'implementFetch'
 
     const id = request.params[this.idProperty]
     if (!id) throw new Error('request.params needs to contain idProperty for implementFetch')
