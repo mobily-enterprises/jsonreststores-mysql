@@ -383,7 +383,7 @@ const Mixin = (superclass) => class extends superclass {
 
     // validateParam
     request.originalParams = request.params
-    request.params = await this._validateParams(request)
+    request.params = await this._validateParams(request, true)
 
     // Add paramIds to body
     this._enrichBodyWithParamIds(request)
@@ -409,7 +409,7 @@ const Mixin = (superclass) => class extends superclass {
 
     // Call the validate hook. This will carry more expensive validation once
     // permissions are granted
-    const allErrors = { ...errors, ...await this.validate(request, errors) }
+    const allErrors = [...errors, ...await this.validate(request, errors)]
     if (allErrors.length) throw new this.constructor.UnprocessableEntityError({ errors: allErrors })
 
     // Work out the insert object
@@ -508,7 +508,7 @@ const Mixin = (superclass) => class extends superclass {
 
     // Call the validate hook. This will carry more expensive validation once
     // permissions are granted
-    const allErrors = { ...errors, ...await this.validate(request, errors) }
+    const allErrors = [...errors, ...await this.validate(request, errors)]
     if (allErrors.length) throw new this.constructor.UnprocessableEntityError({ errors: allErrors })
 
     // Make up the crucial variables for the update: object, joins, and conditions/args
@@ -531,7 +531,7 @@ const Mixin = (superclass) => class extends superclass {
     // Re-fetch the record and return it
     // NOTE: request.params is all implementFetch uses
     request.originalRecord = request.record
-    request.record = this.implementFetch(request)
+    request.record = await this.implementFetch(request)
 
     // This could be useful to the 'after' hook
     request.queryBuilderResult = { updateObject, joins, conditions, args }
