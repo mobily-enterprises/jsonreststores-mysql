@@ -174,11 +174,9 @@ const Mixin = (superclass) => class extends superclass {
               joins: []
             }
           case 'conditionsAndArgs':
-            conditions = []
-            args = []
-
-
-            return this.defaultConditionsAndArgs(request)
+            // Default conditions depending on searchSchema
+            const { defaultConditions: conditions, defaultArgs: args } = await this.defaultConditionsAndArgs(request)  /* eslint-disable-line */
+            return { conditions, args }
         }
         break
 
