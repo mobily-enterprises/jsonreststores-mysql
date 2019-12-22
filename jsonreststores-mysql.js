@@ -160,6 +160,8 @@ const Mixin = (superclass) => class extends superclass {
               conditions: [],
               args: []
             }
+          case 'after':
+            return /* eslint-disable-line */
         }
         break
 
@@ -172,7 +174,11 @@ const Mixin = (superclass) => class extends superclass {
               joins: []
             }
           case 'conditionsAndArgs':
-            return this._optionsConditionsAndArgs(request)
+            conditions = []
+            args = []
+
+
+            return this.defaultConditionsAndArgs(request)
         }
         break
 
@@ -188,6 +194,8 @@ const Mixin = (superclass) => class extends superclass {
               conditions: [],
               args: []
             }
+          case 'after':
+            return /* eslint-disable-line */
         }
         break
 
@@ -196,11 +204,13 @@ const Mixin = (superclass) => class extends superclass {
         switch (param) {
           case 'insertObject':
             return request.body
+          case 'after':
+            return /* eslint-disable-line */
         }
         break
       // SORT
       case 'sort':
-        return this._optionsSort(request)
+        return this.defaultSort(request)
     }
   }
 
@@ -600,9 +610,9 @@ const Mixin = (superclass) => class extends superclass {
   // HELPER FUNCTIONS NEEDED BY implementQuery()
   // **************************************************
 
-  async _optionsConditionsAndArgs (request) {
-    const conditions = []
-    const args = []
+  async defaultConditionsAndArgs (request) {
+    const defaultConditions = []
+    const defaultArgs = []
 
     const ch = request.options.conditionsHash
 
@@ -611,10 +621,10 @@ const Mixin = (superclass) => class extends superclass {
       // Add fields that are in the searchSchema
       if (this.searchSchema.structure[k] && this.schema.structure[k] && String(ch[k]) !== '') {
         if (ch[k] === null) {
-          conditions.push(`${this.table}.${kEsc} IS NULL`)
+          defaultConditions.push(`${this.table}.${kEsc} IS NULL`)
         } else {
-          conditions.push(`${this.table}.${kEsc} = ?`)
-          args.push(ch[k])
+          defaultConditions.push(`${this.table}.${kEsc} = ?`)
+          defaultArgs.push(ch[k])
         }
       }
     }
@@ -622,14 +632,14 @@ const Mixin = (superclass) => class extends superclass {
     for (const k in request.params) {
       const kEsc = `\`${k}\``
       if (this.schema.structure[k] && String(request.params[k]) !== '') {
-        conditions.push(`${this.table}.${kEsc} = ?`)
-        args.push(request.params[k])
+        defaultConditions.push(`${this.table}.${kEsc} = ?`)
+        defaultArgs.push(request.params[k])
       }
     }
-    return { conditions, args }
+    return { defaultConditions, defaultArgs }
   }
 
-  _optionsSort (request) {
+  defaultSort (request) {
     const optionsSort = request.options.sort
     const sort = []
     if (Object.keys(optionsSort).length) {
