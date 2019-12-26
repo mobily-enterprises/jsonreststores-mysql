@@ -192,6 +192,7 @@ const Mixin = (superclass) => class extends superclass {
               conditions: [],
               args: []
             }
+          // Extra operations after update. E.g. update other tables etc.
           case 'after':
             return /* eslint-disable-line */
         }
@@ -202,6 +203,7 @@ const Mixin = (superclass) => class extends superclass {
         switch (param) {
           case 'insertObject':
             return request.body
+          // Extra operations after insert. E.g. insert children records etc.
           case 'after':
             return /* eslint-disable-line */
         }
