@@ -208,7 +208,7 @@ const Mixin = (superclass) => class extends superclass {
         break
       // SORT
       case 'sort':
-        return this.defaultSort(request)
+        return this.optionsSort(request)
     }
   }
 
@@ -637,7 +637,7 @@ const Mixin = (superclass) => class extends superclass {
     return { defaultConditions, defaultArgs }
   }
 
-  defaultSort (request) {
+  optionsSort (request) {
     const optionsSort = request.options.sort
     const sort = []
     if (Object.keys(optionsSort).length) {
