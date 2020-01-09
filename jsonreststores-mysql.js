@@ -128,6 +128,8 @@ const Mixin = (superclass) => class extends superclass {
   }
 
   async queryBuilder (request, op, param) {
+    let conditions
+    let args
     switch (op) {
       //
       // GET
@@ -174,8 +176,14 @@ const Mixin = (superclass) => class extends superclass {
               joins: []
             }
           case 'conditionsAndArgs':
+            conditions = []
+            args = []
+
             // Default conditions depending on searchSchema
-            const { defaultConditions: conditions, defaultArgs: args } = await this.defaultConditionsAndArgs(request)  /* eslint-disable-line */
+            const { defaultConditions, defaultArgs } = this.defaultConditionsAndArgs(request)  /* eslint-disable-line */
+            conditions = [...conditions, defaultConditions]
+            args = [...args, defaultArgs]
+
             return { conditions, args }
         }
         break
@@ -610,7 +618,7 @@ const Mixin = (superclass) => class extends superclass {
   // HELPER FUNCTIONS NEEDED BY implementQuery()
   // **************************************************
 
-  async defaultConditionsAndArgs (request) {
+  defaultConditionsAndArgs (request) {
     const defaultConditions = []
     const defaultArgs = []
 
@@ -629,13 +637,6 @@ const Mixin = (superclass) => class extends superclass {
       }
     }
 
-    for (const k in request.params) {
-      const kEsc = `\`${k}\``
-      if (this.schema.structure[k] && String(request.params[k]) !== '') {
-        defaultConditions.push(`${this.table}.${kEsc} = ?`)
-        defaultArgs.push(request.params[k])
-      }
-    }
     return { defaultConditions, defaultArgs }
   }
 
