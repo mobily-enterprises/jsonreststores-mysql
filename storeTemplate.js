@@ -6,7 +6,7 @@ const Schema = require('simpleschema')
 // The store needs
 const vars = require('../../vars')
 
-class Contacts extends MysqlMixin(HttpMixin(JsonRestStores)) {
+class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
   static get schema () {
     //
     // The schema. This schema has 2 example fields, one boolean and
@@ -103,27 +103,6 @@ class Contacts extends MysqlMixin(HttpMixin(JsonRestStores)) {
         }
         break
 
-      //
-      // DELETE
-      case 'delete':
-        switch (param) {
-          case 'tablesAndJoins':
-            return {
-              tables: [this.table],
-              joins: []
-            }
-          // Conditions on delete. For example, filter out records
-          // that do not belong to the user unless  request.session.isAdmin
-          // is set to true
-          case 'conditionsAndArgs':
-            return {
-              conditions: [],
-              args: []
-            }
-          case 'after':
-            return /* eslint-disable-line */
-        }
-        break
       // QUERY
       case 'query':
         switch (param) {
@@ -147,6 +126,23 @@ class Contacts extends MysqlMixin(HttpMixin(JsonRestStores)) {
             args = [...args, otherKeysArgs]
 
             return { conditions, args }
+        }
+        break
+
+      // INSERT
+      case 'insert':
+        switch (param) {
+          case 'insertObject':
+            insertObject = { ...request.body }
+
+            // ...
+            // Process insertObject here
+            // ...
+            return insertObject
+
+          // Extra operations after insert. E.g. insert children records etc.
+          case 'after':
+            return /* eslint-disable-line */
         }
         break
 
@@ -177,22 +173,28 @@ class Contacts extends MysqlMixin(HttpMixin(JsonRestStores)) {
         }
         break
 
-      // INSERT
-      case 'insert':
+      //
+      // DELETE
+      case 'delete':
         switch (param) {
-          case 'insertObject':
-            insertObject = { ...request.body }
-
-            // ...
-            // Process insertObject here
-            // ...
-            return insertObject
-
-          // Extra operations after insert. E.g. insert children records etc.
+          case 'tablesAndJoins':
+            return {
+              tables: [this.table],
+              joins: []
+            }
+          // Conditions on delete. For example, filter out records
+          // that do not belong to the user unless  request.session.isAdmin
+          // is set to true
+          case 'conditionsAndArgs':
+            return {
+              conditions: [],
+              args: []
+            }
           case 'after':
             return /* eslint-disable-line */
         }
         break
+
       // SORT
       case 'sort':
         return this.optionsSort(request)
@@ -266,4 +268,4 @@ class Contacts extends MysqlMixin(HttpMixin(JsonRestStores)) {
   }
 }
 
-exports = module.exports = new Contacts()
+exports = module.exports = new StoreTemplate()
