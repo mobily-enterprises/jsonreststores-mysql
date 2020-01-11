@@ -9,8 +9,8 @@ const vars = require('../../vars')
 class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
   static get schema () {
     //
-    // The schema. This schema has 2 example fields, one boolean and
-    // one string
+    // The schema. This schema has 3 example fields, one boolean and
+    // two strings
     return new Schema({
       field1: { type: 'boolean', default: false },
       field2: { type: 'string', trim: 16, default: '' },
@@ -22,8 +22,10 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
     return new Schema({
       // The search schema here matches the schema, but that doesn't have to
       // be the case.
+      // Every field here will be allowed in the query string. For example
+      // /stores/storeTemplate?search=something will be allowed.
       // Not all fields have to be here; also, not every entry here must be
-      // a schema field -- for example `search` is not a schema field
+      // a schema field -- for example `search` is not a schema field.
       search: { type: 'string', trim: 16 },
       field1: { type: 'boolean' },
       field2: { type: 'string', trim: 16 },
@@ -31,30 +33,45 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
     })
   }
 
-  static get artificialDelay () { return vars.artificialDelay }
-
+  // The next 3 fields will define the stores' URL, in this case
+  // it will be `/stores/2.0.0/storeTemplate/:id`.
   static get publicURLprefix () { return 'stores' }
   static get version () { return '2.0.0' }
   static get publicURL () { return '/storeTemplate/:id' }
 
+  // This is a unique name for the store. It should match the store name in the URL
   static get storeName () { return 'storeTemplate' }
 
+  // This is the list of the supported methods.
+  // The difference between POST and PUT is that
+  // PUT will expect an ID
   static get handleGet () { return true }
   static get handleGetQuery () { return true }
   static get handlePost () { return true }
   static get handlePut () { return true }
   static get handleDelete () { return true }
 
+  // An artificial delay can be specified for testing purposes
+  static get artificialDelay () { return vars.artificialDelay }
+
+  // The MySql connection must be passed, as well as the MySql table
   static get connection () { return vars.connection }
   static get table () { return 'storeTemplate' }
 
+  // Only non-http errors will be chained to the next middleware.
+  // Everything else (HTTP errors) will be handled by the store
   static get chainErrors () { return 'nonhttp' }
 
+  // Default sort (only used when no sorting is specified) and
+  // sortable fields
   static get defaultSort () { return { field2: -1 } }
   static get sortableFields () { return ['field1'] }
 
   // This is an example permission
   async checkPermissions (request) {
+    //
+    // Uncomment this to test store without permissions
+    return { granted: true }
     //
     // Permissions might also be based on `request.method`, which can be
     // `put`, `post`, `get`, `getQuery`, `delete`.
@@ -78,6 +95,7 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
   // This is the heart of everything
   async queryBuilder (request, op, param) {
     let conditions
+    let joins
     let args
     let updateObject
     let insertObject
@@ -93,13 +111,13 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
               joins: this._joins()
             }
           // Conditions on fetch. For example, filter out records
-          // that do not belong to the user unless  request.session.isAdmin
+          // that do not belong to the user unless request.session.isAdmin
           // is set to true
           case 'conditionsAndArgs':
-            return {
-              conditions: [],
-              args: []
-            }
+            conditions = []
+            args = []
+
+            return { conditions, args }
         }
         break
 
@@ -116,14 +134,18 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
             args = []
 
             // Default conditions depending on searchSchema
+            // defaultConditionsAndArgs will add an equality condition for
+            // every field in the searchSchema that is also in the schema
+            // In this case, `field1`, `field2` and `field3` will be added as default
+            // conditions, whereas `search` won't
             const { defaultConditions, defaultArgs } = await this.defaultConditionsAndArgs(request)  /* eslint-disable-line */
-            conditions = [...conditions, defaultConditions]
-            args = [...args, defaultArgs]
+            conditions = [...conditions, ...defaultConditions]
+            args = [...args, ...defaultArgs]
 
             // Other keys ()
             const { otherKeysConditions, otherKeysArgs } = this._otherKeysConditionsAndArgs(request) /* eslint-disable-line */
-            conditions = [...conditions, otherKeysConditions]
-            args = [...args, otherKeysArgs]
+            conditions = [...conditions, ...otherKeysConditions]
+            args = [...args, ...otherKeysArgs]
 
             return { conditions, args }
         }
@@ -157,16 +179,22 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
             // ...
             return updateObject
           case 'joins':
-            return []
+            joins = []
+
+            // ...mode joins
+
+            return joins
 
           // Conditions on update. For example, filter out records
           // that do not belong to the user unless  request.session.isAdmin
           // is set to true
           case 'conditionsAndArgs':
-            return {
-              conditions: [],
-              args: []
-            }
+            conditions = []
+            args = []
+
+            // ...more conditions which can use joined fields if needed
+
+            return { conditions, args }
           // Extra operations after update. E.g. update other tables etc.
           case 'after':
             return /* eslint-disable-line */
@@ -186,10 +214,12 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
           // that do not belong to the user unless  request.session.isAdmin
           // is set to true
           case 'conditionsAndArgs':
-            return {
-              conditions: [],
-              args: []
-            }
+            conditions = []
+            args = []
+
+            // ...more conditions
+
+            return { conditions, args }
           case 'after':
             return /* eslint-disable-line */
         }
@@ -199,6 +229,8 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
       case 'sort':
         return this.optionsSort(request)
     }
+
+    return super.queryBuilder(request, op, param)
   }
 
   // Since `fetch` and `query` would normally return equivalent records, this is
@@ -233,18 +265,15 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
 
     // If the search field is there, add it to the where string AND add arguments
     // Example for a search:
-    /*
     const ch = request.options.conditionsHash
     if (ch.search) {
       ch.search.split(' ').forEach((s) => {
-        otherKeysConditions.push('(storeTemplate.field1 LIKE ? OR storeTemplate.field2 LIKE ? OR contacts.firstName LIKE ?)')
+        otherKeysConditions.push('(storeTemplate.field1 LIKE ? OR storeTemplate.field2 LIKE ?)')
         // Add one argument per `?` in the query above
-        otherKeysArgs.push('%' + s + '%')
         otherKeysArgs.push('%' + s + '%')
         otherKeysArgs.push('%' + s + '%')
       })
     }
-    */
     return { otherKeysConditions, otherKeysArgs }
   }
 
