@@ -127,9 +127,14 @@ const Mixin = (superclass) => class extends superclass {
     return l
   }
 
+  // This is the heart of everything
   async queryBuilder (request, op, param) {
     let conditions
+    let joins
     let args
+    let updateObject
+    let insertObject
+
     switch (op) {
       //
       // GET
@@ -140,30 +145,14 @@ const Mixin = (superclass) => class extends superclass {
               fields: this.schemaFields(),
               joins: []
             }
+          // Conditions on fetch. For example, filter out records
+          // that do not belong to the user unless request.session.isAdmin
+          // is set to true
           case 'conditionsAndArgs':
-            return {
-              conditions: [],
-              args: []
-            }
-        }
-        break
+            conditions = []
+            args = []
 
-      //
-      // DELETE
-      case 'delete':
-        switch (param) {
-          case 'tablesAndJoins':
-            return {
-              tables: [this.table],
-              joins: []
-            }
-          case 'conditionsAndArgs':
-            return {
-              conditions: [],
-              args: []
-            }
-          case 'after':
-            return /* eslint-disable-line */
+            return { conditions, args }
         }
         break
 
@@ -180,29 +169,15 @@ const Mixin = (superclass) => class extends superclass {
             args = []
 
             // Default conditions depending on searchSchema
-            const { defaultConditions, defaultArgs } = this.defaultConditionsAndArgs(request)  /* eslint-disable-line */
-            conditions = [...conditions, defaultConditions]
-            args = [...args, defaultArgs]
+            // defaultConditionsAndArgs will add an equality condition for
+            // every field in the searchSchema that is also in the schema
+            // In this case, `field1`, `field2` and `field3` will be added as default
+            // conditions, whereas `search` won't
+            const { defaultConditions, defaultArgs } = await this.defaultConditionsAndArgs(request)  /* eslint-disable-line */
+            conditions = [...conditions, ...defaultConditions]
+            args = [...args, ...defaultArgs]
 
             return { conditions, args }
-        }
-        break
-
-      // UPDATE
-      case 'update':
-        switch (param) {
-          case 'updateObject':
-            return request.body
-          case 'joins':
-            return []
-          case 'conditionsAndArgs':
-            return {
-              conditions: [],
-              args: []
-            }
-          // Extra operations after update. E.g. update other tables etc.
-          case 'after':
-            return /* eslint-disable-line */
         }
         break
 
@@ -210,12 +185,66 @@ const Mixin = (superclass) => class extends superclass {
       case 'insert':
         switch (param) {
           case 'insertObject':
-            return request.body
+            insertObject = { ...request.body }
+
+            return insertObject
+
           // Extra operations after insert. E.g. insert children records etc.
           case 'after':
             return /* eslint-disable-line */
         }
         break
+
+      // UPDATE
+      case 'update':
+        switch (param) {
+          case 'updateObject':
+            updateObject = { ...request.body }
+
+            return updateObject
+          case 'joins':
+            joins = []
+
+            // ...mode joins
+
+            return joins
+
+          // Conditions on update. For example, filter out records
+          // that do not belong to the user unless  request.session.isAdmin
+          // is set to true
+          case 'conditionsAndArgs':
+            conditions = []
+            args = []
+
+            return { conditions, args }
+          // Extra operations after update. E.g. update other tables etc.
+          case 'after':
+            return /* eslint-disable-line */
+        }
+        break
+
+      //
+      // DELETE
+      case 'delete':
+        switch (param) {
+          case 'tablesAndJoins':
+            return {
+              tables: [this.table],
+              joins: []
+            }
+          // Conditions on delete. For example, filter out records
+          // that do not belong to the user unless  request.session.isAdmin
+          // is set to true
+          case 'conditionsAndArgs':
+            conditions = []
+            args = []
+
+            return { conditions, args }
+          case 'after':
+            return /* eslint-disable-line */
+        }
+        break
+
       // SORT
       case 'sort':
         return this.optionsSort(request)
@@ -382,7 +411,7 @@ const Mixin = (superclass) => class extends superclass {
   //
   // SIDE_EFFECT:
   //   request.body[beforeIdField] moved to request.beforeId
-  //   request.body (with paramIds)
+  //   request.body (enriched with paramIds)
   //   request.originalBody
   //   request.params (whole object replaced by _validateParams)
   //   request.originalParams (whole object replaced by _validateParams)
@@ -411,10 +440,12 @@ const Mixin = (superclass) => class extends superclass {
     // or manipulate the request itself
     await this.beforeValidate(request)
 
+    const fullRecord = this.fullRecordOnInsert || request.options.fullRecordOnInsert
+
     // Validate input. This is light validation.
     const { validatedObject, errors } = await this.schema.validate(request.body, {
       emptyAsNull: request.options.emptyAsNull || this.emptyAsNull,
-      onlyObjectValues: !request.options.fullRecordOnInsert || !this.fullRecordOnInsert
+      onlyObjectValues: !fullRecord
     })
 
     request.originalBody = request.body
@@ -510,10 +541,12 @@ const Mixin = (superclass) => class extends superclass {
     // or manipulate the request itself
     await this.beforeValidate(request)
 
+    const fullRecord = this.fullRecordOnUpdate || request.options.fullRecordOnUpdate
+
     // Validate input. This is light validation.
     const { validatedObject, errors } = await this.schema.validate(request.body, {
       emptyAsNull: request.options.emptyAsNull || this.emptyAsNull,
-      onlyObjectValues: !request.options.fullRecordOnUpdate || !this.fullRecordOnUpdate,
+      onlyObjectValues: !fullRecord,
       record: request.record
     })
 
@@ -670,7 +703,7 @@ const Mixin = (superclass) => class extends superclass {
   }
 
   // Input: request.params, request.options.[conditionsHash,ranges.[skip,limit],sort]
-  // Output: { dataArray, total, grandTotal }
+  // Output: { data: [], grandTotal: ? }
   async implementQuery (request) {
     this._checkVars()
 
