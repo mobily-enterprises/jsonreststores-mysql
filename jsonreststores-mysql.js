@@ -406,7 +406,6 @@ const Mixin = (superclass) => class extends superclass {
 
   // Input:
   // - request.body
-  // - request.options.[placement,placementAfter] (for record placement)
   // Output: an object (saved record)
   //
   // SIDE_EFFECT:
@@ -425,7 +424,7 @@ const Mixin = (superclass) => class extends superclass {
       delete request.body[this.beforeIdField]
     }
 
-    // This uses request.options.[placement,placementAfter]
+    // This uses request.beforeId
     await this._calculatePosition(request)
 
     // validateParam
@@ -498,7 +497,6 @@ const Mixin = (superclass) => class extends superclass {
   // Input:
   // - request.params (query)
   // - request.body (data)
-  // - request.options.[placement, placementAfter] (for record placement)
   // Output: an object (updated record, refetched)
   //
   // SIDE_EFFECT:
@@ -518,7 +516,7 @@ const Mixin = (superclass) => class extends superclass {
       delete request.body[this.beforeIdField]
     }
 
-    // This uses request.options.[placement,placementAfter]
+    // This uses request.beforeId
     await this._calculatePosition(request)
 
     // validateParam
