@@ -6,6 +6,8 @@ const Schema = require('simpleschema')
 // The store needs
 const vars = require('../../vars')
 
+// The store needs a mysql connection to work. It's assumed that
+// the connection is in vars.connection
 class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
   static get schema () {
     //

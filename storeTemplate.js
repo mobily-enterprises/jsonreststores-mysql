@@ -3,7 +3,8 @@ const MysqlMixin = require('jsonreststores-mysql')
 const HttpMixin = require('jsonreststores/http')
 const Schema = require('simpleschema')
 
-// The store needs
+// The store needs a mysql connection to work. It's assumed that
+// the connection is in vars.connection
 const vars = require('../../vars')
 
 class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
