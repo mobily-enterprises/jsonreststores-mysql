@@ -107,8 +107,8 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
         switch (param) {
           case 'fieldsAndJoins':
             return {
-              fields: this._fields(),
-              joins: this._joins()
+              fields: this.schemaFields(),
+              joins: []
             }
           // Conditions on fetch. For example, filter out records
           // that do not belong to the user unless request.session.isAdmin
@@ -126,8 +126,8 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
         switch (param) {
           case 'fieldsAndJoins':
             return {
-              fields: this._fields(),
-              joins: this._joins()
+              fields: this.schemaFields(),
+              joins: []
             }
           case 'conditionsAndArgs':
             conditions = []
@@ -233,32 +233,6 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
     }
 
     return super.queryBuilder(request, op, param)
-  }
-
-  // Since `fetch` and `query` would normally return equivalent records, this is
-  // provided as an helper function
-  _joins () {
-    return [
-    ]
-    /* Examples of what it could be. Each entry should be a separate,
-       self contained join
-      'LEFT JOIN contacts ON contacts.storeTemplateId = contacts.id',
-    ]
-    */
-  }
-
-  // Since `fetch` and `query` would return the same fields, this is
-  // provided as an helper method.
-  // NOTE: the fields you can return will also depend on what tables you
-  // joined above.
-  _fields () {
-    return [
-      ...this.schemaFields(), /* eslint-disable-line comma-dangle */
-      // Some examples:
-      // 'contacts.name as contactName',
-      // 'contacts.*',
-      // "TRIM(CONCAT_WS(' ', contacts.firstName,contacts.lastName,contacts.companyName,c.companyName)) AS name"
-    ]
   }
 
   _otherKeysConditionsAndArgs (request) {
