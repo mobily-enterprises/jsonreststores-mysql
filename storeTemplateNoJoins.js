@@ -35,6 +35,11 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
     })
   }
 
+  // Default sort (only used when no sorting is specified) and
+  // sortable fields
+  static get defaultSort () { return { field2: -1 } }
+  static get sortableFields () { return ['field1'] }
+
   // The next 3 fields will define the stores' URL, in this case
   // it will be `/stores/2.0.0/storeTemplate/:id`.
   static get publicURLprefix () { return 'stores' }
@@ -63,11 +68,6 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
   // Only non-http errors will be chained to the next middleware.
   // Everything else (HTTP errors) will be handled by the store
   static get chainErrors () { return 'nonhttp' }
-
-  // Default sort (only used when no sorting is specified) and
-  // sortable fields
-  static get defaultSort () { return { field2: -1 } }
-  static get sortableFields () { return ['field1'] }
 
   // This is an example permission
   async checkPermissions (request) {
