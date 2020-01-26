@@ -22,7 +22,7 @@ const Mixin = (superclass) => class extends superclass {
   static get sortableFields () { return [] }
   static get schema () { return null }
   static get searchSchema () { return null } // If not set, worked out from `schema` by constructor
-  static get emptyAsNull () { return true } // Fields that can be updated singularly
+  static get emptyAsNull () { return true }
   static get beforeIdField () { return 'beforeId' } // Virtual field to place elements
   static get positionFilter () { return [] } // List of fields that will determine the subset
   static get defaultSort () { return null } // If set, it will be applied to all getQuery calls

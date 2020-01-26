@@ -39,6 +39,11 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
   static get defaultSort () { return { field2: -1 } }
   static get sortableFields () { return ['field1'] }
 
+  // Position and placement configuration
+  static get positionField () { return 'position' }
+  static get positionFilter () { return [] }
+  static get beforeIdField () { return 'beforeId' }
+
   // The next 3 fields will define the stores' URL, in this case
   // it will be `/stores/2.0.0/storeTemplate/:id`.
   static get publicURLprefix () { return 'stores' }
@@ -47,6 +52,11 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
 
   // This is a unique name for the store. It should match the store name in the URL
   static get storeName () { return 'storeTemplate' }
+
+  // Storing options
+  static get emptyAsNull () { return true } // An empty value will be treated as NULL
+  static get fullRecordOnUpdate () { return false } //  A write will only affects the passed fields, not the whole record
+  static get fullRecordOnInsert () { return true } //  A write will only affects the passed fields, not the whole record
 
   // This is the list of the supported methods.
   // The difference between POST and PUT is that
