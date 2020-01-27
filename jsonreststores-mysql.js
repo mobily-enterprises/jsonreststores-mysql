@@ -263,6 +263,7 @@ const Mixin = (superclass) => class extends superclass {
   //
   // SIDE_EFFECT: body[this.positionField]
   async _calculatePosition (request) {
+    debugger
     //
     //
     const _positionFiltersFieldsSame = (request) => {
@@ -732,6 +733,11 @@ const Mixin = (superclass) => class extends superclass {
     const { fields, joins } = await this.queryBuilder(request, 'query', 'fieldsAndJoins')
     const { conditions, args } = await this.queryBuilder(request, 'query', 'conditionsAndArgs')
     const sort = await this.queryBuilder(request, 'sort', null)
+
+    // Add positional sort if there is no other sorting required
+    if (sort.length === 0 && this.positionField) {
+      sort.push(`${this.positionField}`)
+    }
 
     const { fullQuery, countQuery } = await this.implementQuerySql(fields, joins, conditions, sort)
 
