@@ -263,7 +263,6 @@ const Mixin = (superclass) => class extends superclass {
   //
   // SIDE_EFFECT: body[this.positionField]
   async _calculatePosition (request) {
-    debugger
     //
     //
     const _positionFiltersFieldsSame = (request) => {
