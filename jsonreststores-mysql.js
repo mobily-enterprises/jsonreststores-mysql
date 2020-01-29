@@ -434,6 +434,9 @@ const Mixin = (superclass) => class extends superclass {
     // Add paramIds to body
     this._enrichBodyWithParamIds(request)
 
+    // Assigning an empty record, since there is no data
+    request.record = {}
+
     // This is an important hook as developers might want to
     // manipulate request.body before validation (e.g. non-schema custom fields)
     // or manipulate the request itself
@@ -449,7 +452,6 @@ const Mixin = (superclass) => class extends superclass {
 
     request.originalBody = request.body
     request.body = validatedObject
-    request.record = {}
 
     // Check for permissions
     const { granted, message } = await this.checkPermissions(request)
@@ -500,7 +502,7 @@ const Mixin = (superclass) => class extends superclass {
   // Output: an object (updated record, refetched)
   //
   // SIDE_EFFECT:
-  //   request.record (created)
+  //   request.record (created, if not already set)
   //   request.originalRecord
   //   request.body[beforeIdField] (maybe deleted)
   //   request.params (whole object replaced by _validateParams())
