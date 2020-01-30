@@ -658,14 +658,22 @@ const Mixin = (superclass) => class extends superclass {
     const ch = request.options.conditionsHash
 
     for (const k in ch) {
+      const tEsc = `\`${this.table}\``
       const kEsc = `\`${k}\``
       // Add fields that are in the searchSchema
-      if (this.searchSchema.structure[k] && this.schema.structure[k] && String(ch[k]) !== '') {
+      const ss = this.searchSchema.structure[k]
+      const sss = this.schema.structure[k]
+      if (ss && sss && String(ch[k]) !== '') {
         if (ch[k] === null) {
-          defaultConditions.push(`${this.table}.${kEsc} IS NULL`)
+          defaultConditions.push(`${tEsc}.${kEsc} IS NULL`)
         } else {
-          defaultConditions.push(`${this.table}.${kEsc} = ?`)
-          defaultArgs.push(ch[k])
+          if (sss.fullSearch) {
+            defaultConditions.push(`${tEsc}.${kEsc} LIKE ?`)
+            defaultArgs.push('%' + ch[k] + '%')
+          } else {
+            defaultConditions.push(`${tEsc}.${kEsc} = ?`)
+            defaultArgs.push(ch[k])
+          }
         }
       }
     }
