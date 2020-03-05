@@ -661,13 +661,13 @@ const Mixin = (superclass) => class extends superclass {
       const tEsc = `\`${this.table}\``
       const kEsc = `\`${k}\``
       // Add fields that are in the searchSchema
-      const ss = this.searchSchema.structure[k]
-      const sss = this.schema.structure[k]
-      if (ss && sss && String(ch[k]) !== '') {
+      const sss = this.searchSchema.structure[k]
+      const ss = this.schema.structure[k]
+      if (sss && ss && String(ch[k]) !== '') {
         if (ch[k] === null) {
           defaultConditions.push(`${tEsc}.${kEsc} IS NULL`)
         } else {
-          if (sss.fullSearch) {
+          if (ss.fullSearch || sss.fullSearch) {
             defaultConditions.push(`${tEsc}.${kEsc} LIKE ?`)
             defaultArgs.push('%' + ch[k] + '%')
           } else {
