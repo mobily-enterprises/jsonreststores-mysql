@@ -684,12 +684,13 @@ const Mixin = (superclass) => class extends superclass {
   optionsSort (request) {
     const optionsSort = request.options.sort
     const sort = []
+    const args = []
     if (Object.keys(optionsSort).length) {
       for (const k in optionsSort) {
         sort.push(`${this.table}.${k} ${Number(optionsSort[k]) === 1 ? 'DESC' : 'ASC'}`)
       }
     }
-    return sort
+    return { sort, args }
   }
 
   implementQuerySql (fields, joins, conditions, sort) {
@@ -706,7 +707,7 @@ const Mixin = (superclass) => class extends superclass {
 
     return {
       fullQuery: `${selectString} ${fieldsString} FROM \`${this.table}\` ${joinString} ${whereString} ${sortString} ${rangeString}`,
-      countQuery: `SELECT COUNT(*) AS grandTotal FROM \`${this.table}\` ${joinString} ${whereString} ${sortString}`
+      countQuery: `SELECT COUNT(*) AS grandTotal FROM \`${this.table}\` ${joinString} ${whereString}`
     }
   }
 
@@ -741,7 +742,7 @@ const Mixin = (superclass) => class extends superclass {
     // Get different select and different args if available
     const { fields, joins } = await this.queryBuilder(request, 'query', 'fieldsAndJoins')
     const { conditions, args } = await this.queryBuilder(request, 'query', 'conditionsAndArgs')
-    const sort = await this.queryBuilder(request, 'sort', null)
+    const { sort, args: sortArgs } = await this.queryBuilder(request, 'sort', null)
 
     // Add positional sort if there is no other sorting required
     if (sort.length === 0 && this.positionField) {
@@ -751,9 +752,9 @@ const Mixin = (superclass) => class extends superclass {
     const { fullQuery, countQuery } = await this.implementQuerySql(fields, joins, conditions, sort)
 
     // Add skip and limit to args
-    const argsWithLimits = [...args, request.options.ranges.skip, request.options.ranges.limit]
+    const argsWithSortAndLimits = [...args, ...sortArgs, request.options.ranges.skip, request.options.ranges.limit]
 
-    let result = await this.connection.queryP(fullQuery, argsWithLimits)
+    let result = await this.connection.queryP(fullQuery, argsWithSortAndLimits)
     const grandTotal = (await this.connection.queryP(countQuery, args))[0].grandTotal
 
     // Transform the result it if necessary
