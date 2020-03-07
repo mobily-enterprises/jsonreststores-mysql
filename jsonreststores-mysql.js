@@ -417,6 +417,7 @@ const Mixin = (superclass) => class extends superclass {
   async implementInsert (request) {
     this._checkVars()
 
+    request.method = request.method || 'post'
     request.inMethod = 'implementInsert'
 
     if (this.positionField) {
@@ -511,6 +512,7 @@ const Mixin = (superclass) => class extends superclass {
   async implementUpdate (request) {
     this._checkVars()
 
+    request.method = request.method || 'put'
     request.inMethod = 'implementUpdate'
 
     if (this.positionField) {
@@ -609,6 +611,7 @@ const Mixin = (superclass) => class extends superclass {
   async implementDelete (request) {
     this._checkVars()
 
+    request.method = request.method || 'delete'
     request.inMethod = 'implementDelete'
 
     const id = request.params[this.idProperty]
@@ -716,6 +719,7 @@ const Mixin = (superclass) => class extends superclass {
   async implementQuery (request) {
     this._checkVars()
 
+    request.method = request.method || 'getQuery'
     request.inMethod = 'implementQuery'
 
     request.options = { ...request.options }
@@ -783,6 +787,7 @@ const Mixin = (superclass) => class extends superclass {
   async implementFetch (request) {
     this._checkVars()
 
+    request.method = request.method || 'get'
     request.inMethod = 'implementFetch'
 
     const id = request.params[this.idProperty]
