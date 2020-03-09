@@ -360,8 +360,10 @@ const Mixin = (superclass) => class extends superclass {
   async _validateParams (request, skipIdProperty) {
     const fieldErrors = []
 
+    const params = request.params || {}
+
     // Params is empty: nothing to do, optimise a little
-    if (request.params.length === 0) return
+    if (params.length === 0) return
 
     // Check that _all_ paramIds are in params
     // (Direct requests don't use URL, so check)
@@ -370,7 +372,7 @@ const Mixin = (superclass) => class extends superclass {
       if (skipIdProperty && k === this.idProperty) return
 
       // Required paramId not there: puke!
-      if (typeof (request.params[k]) === 'undefined') {
+      if (typeof (params[k]) === 'undefined') {
         fieldErrors.push({ field: k, message: 'Field required in the URL/param: ' + k })
       }
     })
@@ -383,8 +385,8 @@ const Mixin = (superclass) => class extends superclass {
       skipFields.push(this.idProperty)
     }
 
-    // Validate request.params
-    const { validatedObject, errors } = await this.schema.validate(request.params, { onlyObjectValues: true, skipFields })
+    // Validate params
+    const { validatedObject, errors } = await this.schema.validate(params, { onlyObjectValues: true, skipFields })
     if (errors.length) throw new this.constructor.BadRequestError({ errors: errors })
 
     return validatedObject
@@ -419,6 +421,7 @@ const Mixin = (superclass) => class extends superclass {
 
     request.method = request.method || 'post'
     request.inMethod = 'implementInsert'
+    request.options = request.options || {}
 
     if (this.positionField) {
       request.beforeId = request.body[this.beforeIdField]
@@ -429,7 +432,7 @@ const Mixin = (superclass) => class extends superclass {
     await this._calculatePosition(request)
 
     // validateParam
-    request.originalParams = request.params
+    request.originalParams = request.params || {}
     request.params = await this._validateParams(request, true)
 
     // Add paramIds to body
@@ -509,11 +512,13 @@ const Mixin = (superclass) => class extends superclass {
   //   request.params (whole object replaced by _validateParams())
   //   request.body (added paramIds)
   //   request.originalBody
+  //   request.options
   async implementUpdate (request) {
     this._checkVars()
 
     request.method = request.method || 'put'
     request.inMethod = 'implementUpdate'
+    request.options = request.options || {}
 
     if (this.positionField) {
       request.beforeId = request.body[this.beforeIdField]
@@ -524,7 +529,7 @@ const Mixin = (superclass) => class extends superclass {
     await this._calculatePosition(request)
 
     // validateParam
-    request.originalParams = request.params
+    request.originalParams = request.params || {}
     request.params = await this._validateParams(request)
 
     const id = request.params[this.idProperty]
@@ -613,6 +618,7 @@ const Mixin = (superclass) => class extends superclass {
 
     request.method = request.method || 'delete'
     request.inMethod = 'implementDelete'
+    request.options = request.options || {}
 
     const id = request.params[this.idProperty]
     if (!id) throw new Error('request.params needs to contain idProperty for implementDelete')
@@ -714,20 +720,20 @@ const Mixin = (superclass) => class extends superclass {
     }
   }
 
-  // Input: request.params, request.options.[conditionsHash,ranges.[skip,limit],sort]
+  // Input: request.params, request.options.[conditionsHash,skip,limit,sort]
   // Output: { data: [], grandTotal: ? }
   async implementQuery (request) {
     this._checkVars()
 
     request.method = request.method || 'getQuery'
     request.inMethod = 'implementQuery'
+    request.options = request.options || {}
 
-    request.options = { ...request.options }
-
-    // Sanitise request.options.sort and request.options.ranges,
+    // Sanitise request.options.sort/skip/limit
     // which are set to options or store-wide defaults
     request.options.sort = request.options.sort || this.defaultSort || {}
-    request.options.ranges = request.options.ranges || { skip: 0, limit: this.defaultLimitOnQueries }
+    request.options.skip = request.options.skip || 0
+    request.options.limit = request.options.limit || this.defaultLimitOnQueries
 
     // Validate the search schema
     const { validatedObject, errors } = await this.searchSchema.validate(request.options.conditionsHash, { onlyObjectValues: true })
@@ -756,7 +762,7 @@ const Mixin = (superclass) => class extends superclass {
     const { fullQuery, countQuery } = await this.implementQuerySql(fields, joins, conditions, sort)
 
     // Add skip and limit to args
-    const argsWithSortAndLimits = [...args, ...sortArgs, request.options.ranges.skip, request.options.ranges.limit]
+    const argsWithSortAndLimits = [...args, ...sortArgs, request.options.skip, request.options.limit]
 
     let result = await this.connection.queryP(fullQuery, argsWithSortAndLimits)
     const grandTotal = (await this.connection.queryP(countQuery, args))[0].grandTotal
@@ -789,6 +795,7 @@ const Mixin = (superclass) => class extends superclass {
 
     request.method = request.method || 'get'
     request.inMethod = 'implementFetch'
+    request.options = request.options || {}
 
     const id = request.params[this.idProperty]
     if (!id) throw new Error('request.params needs to contain idProperty for implementFetch')

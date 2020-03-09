@@ -61,7 +61,7 @@ class StoreTemplate extends HttpMixin(JsonRestStores) {
     throw (new Error('implementDelete not implemented, store is not functional'))
   }
 
-  // Input: request.params, request.options.[conditionsHash,ranges.[skip,limit],sort]
+  // Input: request.params, request.options.[conditionsHash,skip,limit,sort]
   // Output: { data: [], grandTotal: ? }
   async implementQuery (request) {
     throw (new Error('implementQuery not implemented, store is not functional'))
