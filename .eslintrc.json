@@ -11,7 +11,7 @@
   "rules": {
     "require-atomic-updates": "off",
     "brace-style": "off",
-    "new-cap": ["error", { "capIsNewExceptions": [] }],
+    "new-cap": "off",
     "no-var": "error",
     "require-jsdoc": "off"
   },

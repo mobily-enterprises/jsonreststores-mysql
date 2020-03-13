@@ -22,7 +22,7 @@ const Mixin = (superclass) => class extends superclass {
   static get sortableFields () { return [] }
   static get schema () { return null }
   static get searchSchema () { return null } // If not set, worked out from `schema` by constructor
-  static get emptyAsNull () { return true } // Fields that can be updated singularly
+  static get emptyAsNull () { return false }
   static get beforeIdField () { return 'beforeId' } // Virtual field to place elements
   static get positionFilter () { return [] } // List of fields that will determine the subset
   static get defaultSort () { return null } // If set, it will be applied to all getQuery calls
@@ -127,7 +127,14 @@ const Mixin = (superclass) => class extends superclass {
     return l
   }
 
+  // This is the heart of everything
   async queryBuilder (request, op, param) {
+    let conditions
+    let joins
+    let args
+    let updateObject
+    let insertObject
+
     switch (op) {
       //
       // GET
@@ -138,30 +145,14 @@ const Mixin = (superclass) => class extends superclass {
               fields: this.schemaFields(),
               joins: []
             }
+          // Conditions on fetch. For example, filter out records
+          // that do not belong to the user unless request.session.isAdmin
+          // is set to true
           case 'conditionsAndArgs':
-            return {
-              conditions: [],
-              args: []
-            }
-        }
-        break
+            conditions = []
+            args = []
 
-      //
-      // DELETE
-      case 'delete':
-        switch (param) {
-          case 'tablesAndJoins':
-            return {
-              tables: [this.table],
-              joins: []
-            }
-          case 'conditionsAndArgs':
-            return {
-              conditions: [],
-              args: []
-            }
-          case 'after':
-            return /* eslint-disable-line */
+            return { conditions, args }
         }
         break
 
@@ -174,27 +165,19 @@ const Mixin = (superclass) => class extends superclass {
               joins: []
             }
           case 'conditionsAndArgs':
-            // Default conditions depending on searchSchema
-            const { defaultConditions: conditions, defaultArgs: args } = await this.defaultConditionsAndArgs(request)  /* eslint-disable-line */
-            return { conditions, args }
-        }
-        break
+            conditions = []
+            args = []
 
-      // UPDATE
-      case 'update':
-        switch (param) {
-          case 'updateObject':
-            return request.body
-          case 'joins':
-            return []
-          case 'conditionsAndArgs':
-            return {
-              conditions: [],
-              args: []
-            }
-          // Extra operations after update. E.g. update other tables etc.
-          case 'after':
-            return /* eslint-disable-line */
+            // Default conditions depending on searchSchema
+            // defaultConditionsAndArgs will add an equality condition for
+            // every field in the searchSchema that is also in the schema
+            // In this case, `field1`, `field2` and `field3` will be added as default
+            // conditions, whereas `search` won't
+            const { defaultConditions, defaultArgs } = await this.defaultConditionsAndArgs(request)  /* eslint-disable-line */
+            conditions = [...conditions, ...defaultConditions]
+            args = [...args, ...defaultArgs]
+
+            return { conditions, args }
         }
         break
 
@@ -202,12 +185,66 @@ const Mixin = (superclass) => class extends superclass {
       case 'insert':
         switch (param) {
           case 'insertObject':
-            return request.body
+            insertObject = { ...request.body }
+
+            return insertObject
+
           // Extra operations after insert. E.g. insert children records etc.
           case 'after':
             return /* eslint-disable-line */
         }
         break
+
+      // UPDATE
+      case 'update':
+        switch (param) {
+          case 'updateObject':
+            updateObject = { ...request.body }
+
+            return updateObject
+          case 'joins':
+            joins = []
+
+            // ...mode joins
+
+            return joins
+
+          // Conditions on update. For example, filter out records
+          // that do not belong to the user unless  request.session.isAdmin
+          // is set to true
+          case 'conditionsAndArgs':
+            conditions = []
+            args = []
+
+            return { conditions, args }
+          // Extra operations after update. E.g. update other tables etc.
+          case 'after':
+            return /* eslint-disable-line */
+        }
+        break
+
+      //
+      // DELETE
+      case 'delete':
+        switch (param) {
+          case 'tablesAndJoins':
+            return {
+              tables: [this.table],
+              joins: []
+            }
+          // Conditions on delete. For example, filter out records
+          // that do not belong to the user unless  request.session.isAdmin
+          // is set to true
+          case 'conditionsAndArgs':
+            conditions = []
+            args = []
+
+            return { conditions, args }
+          case 'after':
+            return /* eslint-disable-line */
+        }
+        break
+
       // SORT
       case 'sort':
         return this.optionsSort(request)
@@ -323,8 +360,10 @@ const Mixin = (superclass) => class extends superclass {
   async _validateParams (request, skipIdProperty) {
     const fieldErrors = []
 
+    const params = request.params || {}
+
     // Params is empty: nothing to do, optimise a little
-    if (request.params.length === 0) return
+    if (params.length === 0) return
 
     // Check that _all_ paramIds are in params
     // (Direct requests don't use URL, so check)
@@ -333,7 +372,7 @@ const Mixin = (superclass) => class extends superclass {
       if (skipIdProperty && k === this.idProperty) return
 
       // Required paramId not there: puke!
-      if (typeof (request.params[k]) === 'undefined') {
+      if (typeof (params[k]) === 'undefined') {
         fieldErrors.push({ field: k, message: 'Field required in the URL/param: ' + k })
       }
     })
@@ -346,8 +385,8 @@ const Mixin = (superclass) => class extends superclass {
       skipFields.push(this.idProperty)
     }
 
-    // Validate request.params
-    const { validatedObject, errors } = await this.schema.validate(request.params, { onlyObjectValues: true, skipFields })
+    // Validate params
+    const { validatedObject, errors } = await this.schema.validate(params, { onlyObjectValues: true, skipFields })
     if (errors.length) throw new this.constructor.BadRequestError({ errors: errors })
 
     return validatedObject
@@ -369,49 +408,54 @@ const Mixin = (superclass) => class extends superclass {
 
   // Input:
   // - request.body
-  // - request.options.[placement,placementAfter] (for record placement)
   // Output: an object (saved record)
   //
   // SIDE_EFFECT:
   //   request.body[beforeIdField] moved to request.beforeId
-  //   request.body (with paramIds)
+  //   request.body (enriched with paramIds)
   //   request.originalBody
   //   request.params (whole object replaced by _validateParams)
   //   request.originalParams (whole object replaced by _validateParams)
   async implementInsert (request) {
     this._checkVars()
 
+    request.method = request.method || 'post'
     request.inMethod = 'implementInsert'
+    request.options = request.options || {}
 
     if (this.positionField) {
       request.beforeId = request.body[this.beforeIdField]
       delete request.body[this.beforeIdField]
     }
 
-    // This uses request.options.[placement,placementAfter]
+    // This uses request.beforeId
     await this._calculatePosition(request)
 
     // validateParam
-    request.originalParams = request.params
+    request.originalParams = request.params || {}
     request.params = await this._validateParams(request, true)
 
     // Add paramIds to body
     this._enrichBodyWithParamIds(request)
+
+    // Assigning an empty record, since there is no data
+    request.record = {}
 
     // This is an important hook as developers might want to
     // manipulate request.body before validation (e.g. non-schema custom fields)
     // or manipulate the request itself
     await this.beforeValidate(request)
 
+    const fullRecord = this.fullRecordOnInsert || request.options.fullRecordOnInsert
+
     // Validate input. This is light validation.
     const { validatedObject, errors } = await this.schema.validate(request.body, {
       emptyAsNull: request.options.emptyAsNull || this.emptyAsNull,
-      onlyObjectValues: !request.options.fullRecordOnInsert || !this.fullRecordOnInsert
+      onlyObjectValues: !fullRecord
     })
 
     request.originalBody = request.body
     request.body = validatedObject
-    request.record = {}
 
     // Check for permissions
     const { granted, message } = await this.checkPermissions(request)
@@ -459,31 +503,33 @@ const Mixin = (superclass) => class extends superclass {
   // Input:
   // - request.params (query)
   // - request.body (data)
-  // - request.options.[placement, placementAfter] (for record placement)
   // Output: an object (updated record, refetched)
   //
   // SIDE_EFFECT:
-  //   request.record (created)
+  //   request.record (created, if not already set)
   //   request.originalRecord
   //   request.body[beforeIdField] (maybe deleted)
   //   request.params (whole object replaced by _validateParams())
   //   request.body (added paramIds)
   //   request.originalBody
+  //   request.options
   async implementUpdate (request) {
     this._checkVars()
 
+    request.method = request.method || 'put'
     request.inMethod = 'implementUpdate'
+    request.options = request.options || {}
 
     if (this.positionField) {
       request.beforeId = request.body[this.beforeIdField]
       delete request.body[this.beforeIdField]
     }
 
-    // This uses request.options.[placement,placementAfter]
+    // This uses request.beforeId
     await this._calculatePosition(request)
 
     // validateParam
-    request.originalParams = request.params
+    request.originalParams = request.params || {}
     request.params = await this._validateParams(request)
 
     const id = request.params[this.idProperty]
@@ -502,10 +548,12 @@ const Mixin = (superclass) => class extends superclass {
     // or manipulate the request itself
     await this.beforeValidate(request)
 
+    const fullRecord = this.fullRecordOnUpdate || request.options.fullRecordOnUpdate
+
     // Validate input. This is light validation.
     const { validatedObject, errors } = await this.schema.validate(request.body, {
       emptyAsNull: request.options.emptyAsNull || this.emptyAsNull,
-      onlyObjectValues: !request.options.fullRecordOnUpdate || !this.fullRecordOnUpdate,
+      onlyObjectValues: !fullRecord,
       record: request.record
     })
 
@@ -568,7 +616,9 @@ const Mixin = (superclass) => class extends superclass {
   async implementDelete (request) {
     this._checkVars()
 
+    request.method = request.method || 'delete'
     request.inMethod = 'implementDelete'
+    request.options = request.options || {}
 
     const id = request.params[this.idProperty]
     if (!id) throw new Error('request.params needs to contain idProperty for implementDelete')
@@ -610,44 +660,46 @@ const Mixin = (superclass) => class extends superclass {
   // HELPER FUNCTIONS NEEDED BY implementQuery()
   // **************************************************
 
-  async defaultConditionsAndArgs (request) {
+  defaultConditionsAndArgs (request) {
     const defaultConditions = []
     const defaultArgs = []
 
     const ch = request.options.conditionsHash
 
     for (const k in ch) {
+      const tEsc = `\`${this.table}\``
       const kEsc = `\`${k}\``
       // Add fields that are in the searchSchema
-      if (this.searchSchema.structure[k] && this.schema.structure[k] && String(ch[k]) !== '') {
+      const sss = this.searchSchema.structure[k]
+      const ss = this.schema.structure[k]
+      if (sss && ss && String(ch[k]) !== '') {
         if (ch[k] === null) {
-          defaultConditions.push(`${this.table}.${kEsc} IS NULL`)
+          defaultConditions.push(`${tEsc}.${kEsc} IS NULL`)
         } else {
-          defaultConditions.push(`${this.table}.${kEsc} = ?`)
-          defaultArgs.push(ch[k])
+          if (ss.fullSearch || sss.fullSearch) {
+            defaultConditions.push(`${tEsc}.${kEsc} LIKE ?`)
+            defaultArgs.push('%' + ch[k] + '%')
+          } else {
+            defaultConditions.push(`${tEsc}.${kEsc} = ?`)
+            defaultArgs.push(ch[k])
+          }
         }
       }
     }
 
-    for (const k in request.params) {
-      const kEsc = `\`${k}\``
-      if (this.schema.structure[k] && String(request.params[k]) !== '') {
-        defaultConditions.push(`${this.table}.${kEsc} = ?`)
-        defaultArgs.push(request.params[k])
-      }
-    }
     return { defaultConditions, defaultArgs }
   }
 
   optionsSort (request) {
     const optionsSort = request.options.sort
     const sort = []
+    const args = []
     if (Object.keys(optionsSort).length) {
       for (const k in optionsSort) {
         sort.push(`${this.table}.${k} ${Number(optionsSort[k]) === 1 ? 'DESC' : 'ASC'}`)
       }
     }
-    return sort
+    return { sort, args }
   }
 
   implementQuerySql (fields, joins, conditions, sort) {
@@ -664,23 +716,24 @@ const Mixin = (superclass) => class extends superclass {
 
     return {
       fullQuery: `${selectString} ${fieldsString} FROM \`${this.table}\` ${joinString} ${whereString} ${sortString} ${rangeString}`,
-      countQuery: `SELECT COUNT(*) AS grandTotal FROM \`${this.table}\` ${joinString} ${whereString} ${sortString}`
+      countQuery: `SELECT COUNT(*) AS grandTotal FROM \`${this.table}\` ${joinString} ${whereString}`
     }
   }
 
-  // Input: request.params, request.options.[conditionsHash,ranges.[skip,limit],sort]
-  // Output: { dataArray, total, grandTotal }
+  // Input: request.params, request.options.[conditionsHash,skip,limit,sort]
+  // Output: { data: [], grandTotal: ? }
   async implementQuery (request) {
     this._checkVars()
 
+    request.method = request.method || 'getQuery'
     request.inMethod = 'implementQuery'
+    request.options = request.options || {}
 
-    request.options = { ...request.options }
-
-    // Sanitise request.options.sort and request.options.ranges,
+    // Sanitise request.options.sort/skip/limit
     // which are set to options or store-wide defaults
     request.options.sort = request.options.sort || this.defaultSort || {}
-    request.options.ranges = request.options.ranges || { skip: 0, limit: this.defaultLimitOnQueries }
+    request.options.skip = request.options.skip || 0
+    request.options.limit = request.options.limit || this.defaultLimitOnQueries
 
     // Validate the search schema
     const { validatedObject, errors } = await this.searchSchema.validate(request.options.conditionsHash, { onlyObjectValues: true })
@@ -699,14 +752,19 @@ const Mixin = (superclass) => class extends superclass {
     // Get different select and different args if available
     const { fields, joins } = await this.queryBuilder(request, 'query', 'fieldsAndJoins')
     const { conditions, args } = await this.queryBuilder(request, 'query', 'conditionsAndArgs')
-    const sort = await this.queryBuilder(request, 'sort', null)
+    const { sort, args: sortArgs } = await this.queryBuilder(request, 'sort', null)
+
+    // Add positional sort if there is no other sorting required
+    if (sort.length === 0 && this.positionField) {
+      sort.push(`${this.positionField}`)
+    }
 
     const { fullQuery, countQuery } = await this.implementQuerySql(fields, joins, conditions, sort)
 
     // Add skip and limit to args
-    const argsWithLimits = [...args, request.options.ranges.skip, request.options.ranges.limit]
+    const argsWithSortAndLimits = [...args, ...sortArgs, request.options.skip, request.options.limit]
 
-    let result = await this.connection.queryP(fullQuery, argsWithLimits)
+    let result = await this.connection.queryP(fullQuery, argsWithSortAndLimits)
     const grandTotal = (await this.connection.queryP(countQuery, args))[0].grandTotal
 
     // Transform the result it if necessary
@@ -735,7 +793,9 @@ const Mixin = (superclass) => class extends superclass {
   async implementFetch (request) {
     this._checkVars()
 
+    request.method = request.method || 'get'
     request.inMethod = 'implementFetch'
+    request.options = request.options || {}
 
     const id = request.params[this.idProperty]
     if (!id) throw new Error('request.params needs to contain idProperty for implementFetch')
