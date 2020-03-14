@@ -215,6 +215,7 @@ const Mixin = (superclass) => class extends superclass {
           case 'conditionsAndArgs':
             return this.deleteConditionsAndArgs(request)
           case 'after':
+            this.afterDelete(request)
             return /* eslint-disable-line */
         }
         break
@@ -259,6 +260,9 @@ const Mixin = (superclass) => class extends superclass {
     return []
   }
 
+  // INPUT: request.record
+  // OUTPUT: Modify request.record before modifying it, and run any
+  // side effect insert/updates to other tables if necessary
   afterUpdate (request) {
   }
 
@@ -280,6 +284,9 @@ const Mixin = (superclass) => class extends superclass {
     }
   }
 
+  afterDelete (request) {
+  }
+
   queryConditionsAndArgs (request) {
     return this.optionsQueryConditionsAndArgs(request)
   }
@@ -287,6 +294,10 @@ const Mixin = (superclass) => class extends superclass {
   querySort (request) {
     return this.optionsSort(request)
   }
+
+  // **************************************************
+  // UTIITY FUNCTIONS FOR HOOKS
+  // **************************************************
 
   optionsSort (request) {
     const optionsSort = request.options.sort
@@ -332,10 +343,6 @@ const Mixin = (superclass) => class extends superclass {
     }
 
     return { conditions, args }
-  }
-
-  defaultConditionsAndArgs (request) {
-    return this.queryConditionsAndArgs(request)
   }
 
   // ********************************************************************
@@ -772,11 +779,17 @@ const Mixin = (superclass) => class extends superclass {
 
     request.method = request.method || 'getQuery'
     request.inMethod = 'implementQuery'
-    request.options = request.options || {}
 
-    // Sanitise request.options.sort/skip/limit
-    // which are set to options or store-wide defaults
-    request.options.sort = request.options.sort || this.defaultSort || {}
+    // Don't allow options pollution. We can change the reference request.options
+    // because requests are one-use only. However, the options object itself must
+    // be left intact since it may not be single-use only
+    // The sort object is also copied clean if passed through `options`
+    request.options = request.options ? { ...request.options } : {}
+    const actualSort = request.options.sort || this.defaultSort
+    request.options.sort = actualSort ? { ...actualSort } : {}
+
+    // Sanitise request.skip and request.limit
+    // Limit is set in options, or the store-wide defaults defaultLimitOnQueries
     request.options.skip = request.options.skip || 0
     request.options.limit = request.options.limit || this.defaultLimitOnQueries
 
