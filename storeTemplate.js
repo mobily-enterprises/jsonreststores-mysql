@@ -121,6 +121,7 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
   //
   // INPUT:
   // * request.body -- data sent by the client
+  // * request.method
   // * request.record (existing data if request.inMethod === 'implementUpdate')
   // * { ...request.record, ...request.body } -- a "full" record made up of new and existing data
   async validate (request, existingErrors) {
