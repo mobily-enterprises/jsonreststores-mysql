@@ -109,10 +109,6 @@ const Mixin = (superclass) => class extends superclass {
     return { paramsConditions, paramsArgs }
   }
 
-  // **************************************************
-  // QUERY BUILDER
-  // **************************************************
-
   schemaFields () {
     const l = []
 
@@ -127,11 +123,12 @@ const Mixin = (superclass) => class extends superclass {
     return l
   }
 
+  // **************************************************
+  // QUERY BUILDER
+  // **************************************************
+
   // This is the heart of everything
   async queryBuilder (request, op, param) {
-    let conditions
-    let joins
-    let args
     let updateObject
     let insertObject
 
@@ -141,18 +138,13 @@ const Mixin = (superclass) => class extends superclass {
       case 'fetch':
         switch (param) {
           case 'fieldsAndJoins':
-            return {
-              fields: this.schemaFields(),
-              joins: []
-            }
+            return this.fetchFieldsAndJoins(request)
+
           // Conditions on fetch. For example, filter out records
           // that do not belong to the user unless request.session.isAdmin
           // is set to true
           case 'conditionsAndArgs':
-            conditions = []
-            args = []
-
-            return { conditions, args }
+            return this.fetchConditionsAndArgs(request)
         }
         break
 
@@ -160,24 +152,11 @@ const Mixin = (superclass) => class extends superclass {
       case 'query':
         switch (param) {
           case 'fieldsAndJoins':
-            return {
-              fields: this.schemaFields(),
-              joins: []
-            }
+            return this.queryFieldsAndJoins(request)
           case 'conditionsAndArgs':
-            conditions = []
-            args = []
-
-            // Default conditions depending on searchSchema
-            // defaultConditionsAndArgs will add an equality condition for
-            // every field in the searchSchema that is also in the schema
-            // In this case, `field1`, `field2` and `field3` will be added as default
-            // conditions, whereas `search` won't
-            const { defaultConditions, defaultArgs } = await this.defaultConditionsAndArgs(request)  /* eslint-disable-line */
-            conditions = [...conditions, ...defaultConditions]
-            args = [...args, ...defaultArgs]
-
-            return { conditions, args }
+            return this.queryConditionsAndArgs(request)  /* eslint-disable-line */
+          case 'sort':
+            return this.querySort(request)
         }
         break
 
@@ -187,10 +166,13 @@ const Mixin = (superclass) => class extends superclass {
           case 'insertObject':
             insertObject = { ...request.body }
 
+            insertObject = this.manipulateInsertObject(request, insertObject)
+
             return insertObject
 
           // Extra operations after insert. E.g. insert children records etc.
           case 'after':
+            this.afterInsert(request)
             return /* eslint-disable-line */
         }
         break
@@ -201,24 +183,21 @@ const Mixin = (superclass) => class extends superclass {
           case 'updateObject':
             updateObject = { ...request.body }
 
+            updateObject = this.manipulateUpdateObject(request, updateObject)
+
             return updateObject
           case 'joins':
-            joins = []
-
-            // ...mode joins
-
-            return joins
+            return this.updateJoins()
 
           // Conditions on update. For example, filter out records
           // that do not belong to the user unless  request.session.isAdmin
           // is set to true
           case 'conditionsAndArgs':
-            conditions = []
-            args = []
+            return this.updateConditionsAndArgs(request)
 
-            return { conditions, args }
           // Extra operations after update. E.g. update other tables etc.
           case 'after':
+            this.afterUpdate(request)
             return /* eslint-disable-line */
         }
         break
@@ -228,27 +207,135 @@ const Mixin = (superclass) => class extends superclass {
       case 'delete':
         switch (param) {
           case 'tablesAndJoins':
-            return {
-              tables: [this.table],
-              joins: []
-            }
+            return this.deleteTablesAndJoins(request)
+
           // Conditions on delete. For example, filter out records
           // that do not belong to the user unless  request.session.isAdmin
           // is set to true
           case 'conditionsAndArgs':
-            conditions = []
-            args = []
-
-            return { conditions, args }
+            return this.deleteConditionsAndArgs(request)
           case 'after':
             return /* eslint-disable-line */
         }
         break
-
-      // SORT
-      case 'sort':
-        return this.optionsSort(request)
     }
+  }
+
+  fetchConditionsAndArgs (request) {
+    return { conditions: [], args: [] }
+  }
+
+  fetchFieldsAndJoins (request) {
+    return {
+      fields: this.fetchQueryFields(request, 'fetch'),
+      joins: this.fetchQueryJoins(request, 'fetch')
+    }
+  }
+
+  queryFieldsAndJoins (request) {
+    return {
+      fields: this.fetchQueryFields(request, 'query'),
+      joins: this.fetchQueryJoins(request, 'query')
+    }
+  }
+
+  fetchQueryFields (request) {
+    return this.schemaFields()
+  }
+
+  fetchQueryJoins (request) {
+    return []
+  }
+
+  manipulateUpdateObject (request, updateObject) {
+    return updateObject
+  }
+
+  updateConditionsAndArgs (request) {
+    return { conditions: [], args: [] }
+  }
+
+  updateJoins (request) {
+    return []
+  }
+
+  afterUpdate (request) {
+  }
+
+  manipulateInsertObject (request, insertObject) {
+    return insertObject
+  }
+
+  afterInsert (request) {
+  }
+
+  deleteConditionsAndArgs (request) {
+    return { conditions: [], args: [] }
+  }
+
+  deleteTablesAndJoins (request) {
+    return {
+      tables: [this.table],
+      joins: []
+    }
+  }
+
+  queryConditionsAndArgs (request) {
+    return this.optionsQueryConditionsAndArgs(request)
+  }
+
+  querySort (request) {
+    return this.optionsSort(request)
+  }
+
+  optionsSort (request) {
+    const optionsSort = request.options.sort
+    const sort = []
+    const args = []
+    if (Object.keys(optionsSort).length) {
+      for (const k in optionsSort) {
+        if (k.includes('.')) {
+          sort.push(`${k} ${Number(optionsSort[k]) === 1 ? 'DESC' : 'ASC'}`)
+        } else {
+          sort.push(`${this.table}.${k} ${Number(optionsSort[k]) === 1 ? 'DESC' : 'ASC'}`)
+        }
+      }
+    }
+    return { sort, args }
+  }
+
+  optionsQueryConditionsAndArgs (request) {
+    const conditions = []
+    const args = []
+
+    const ch = request.options.conditionsHash
+
+    for (const k in ch) {
+      const tEsc = `\`${this.table}\``
+      const kEsc = `\`${k}\``
+      // Add fields that are in the searchSchema
+      const sss = this.searchSchema.structure[k]
+      const ss = this.schema.structure[k]
+      if (sss && ss && String(ch[k]) !== '') {
+        if (ch[k] === null) {
+          conditions.push(`${tEsc}.${kEsc} IS NULL`)
+        } else {
+          if (ss.fullSearch || sss.fullSearch) {
+            conditions.push(`${tEsc}.${kEsc} LIKE ?`)
+            args.push('%' + ch[k] + '%')
+          } else {
+            conditions.push(`${tEsc}.${kEsc} = ?`)
+            args.push(ch[k])
+          }
+        }
+      }
+    }
+
+    return { conditions, args }
+  }
+
+  defaultConditionsAndArgs (request) {
+    return this.queryConditionsAndArgs(request)
   }
 
   // ********************************************************************
@@ -660,48 +747,6 @@ const Mixin = (superclass) => class extends superclass {
   // HELPER FUNCTIONS NEEDED BY implementQuery()
   // **************************************************
 
-  defaultConditionsAndArgs (request) {
-    const defaultConditions = []
-    const defaultArgs = []
-
-    const ch = request.options.conditionsHash
-
-    for (const k in ch) {
-      const tEsc = `\`${this.table}\``
-      const kEsc = `\`${k}\``
-      // Add fields that are in the searchSchema
-      const sss = this.searchSchema.structure[k]
-      const ss = this.schema.structure[k]
-      if (sss && ss && String(ch[k]) !== '') {
-        if (ch[k] === null) {
-          defaultConditions.push(`${tEsc}.${kEsc} IS NULL`)
-        } else {
-          if (ss.fullSearch || sss.fullSearch) {
-            defaultConditions.push(`${tEsc}.${kEsc} LIKE ?`)
-            defaultArgs.push('%' + ch[k] + '%')
-          } else {
-            defaultConditions.push(`${tEsc}.${kEsc} = ?`)
-            defaultArgs.push(ch[k])
-          }
-        }
-      }
-    }
-
-    return { defaultConditions, defaultArgs }
-  }
-
-  optionsSort (request) {
-    const optionsSort = request.options.sort
-    const sort = []
-    const args = []
-    if (Object.keys(optionsSort).length) {
-      for (const k in optionsSort) {
-        sort.push(`${this.table}.${k} ${Number(optionsSort[k]) === 1 ? 'DESC' : 'ASC'}`)
-      }
-    }
-    return { sort, args }
-  }
-
   implementQuerySql (fields, joins, conditions, sort) {
     const selectString = 'SELECT'
     const fieldsString = fields.join(',')
@@ -752,7 +797,7 @@ const Mixin = (superclass) => class extends superclass {
     // Get different select and different args if available
     const { fields, joins } = await this.queryBuilder(request, 'query', 'fieldsAndJoins')
     const { conditions, args } = await this.queryBuilder(request, 'query', 'conditionsAndArgs')
-    const { sort, args: sortArgs } = await this.queryBuilder(request, 'sort', null)
+    const { sort, args: sortArgs } = await this.queryBuilder(request, 'query', 'sort')
 
     // Add positional sort if there is no other sorting required
     if (sort.length === 0 && this.positionField) {

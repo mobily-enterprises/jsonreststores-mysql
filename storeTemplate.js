@@ -13,9 +13,9 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
     // The schema. This schema has 3 example fields, one boolean and
     // two strings
     return new Schema({
-      field1: { type: 'boolean', default: false },
-      field2: { type: 'string', trim: 16, default: '' },
-      field3: { type: 'string', trim: 16, default: '' }
+      // field1: { type: 'boolean', default: false },
+      // field2: { type: 'string', trim: 16, default: '' },
+      // field3: { type: 'string', trim: 16, default: '' }
     })
   }
 
@@ -27,10 +27,10 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
       // /stores/storeTemplate?search=something will be allowed.
       // Not all fields have to be here; also, not every entry here must be
       // a schema field -- for example `search` is not a schema field.
-      search: { type: 'string', trim: 16 },
-      field1: { type: 'boolean' },
-      field2: { type: 'string', trim: 16 },
-      field3: { type: 'string', trim: 16 }
+      // search: { type: 'string', trim: 16 },
+      // field1: { type: 'boolean' },
+      // field2: { type: 'string', trim: 16 },
+      // field3: { type: 'string', trim: 16 }
     })
   }
 
@@ -82,7 +82,6 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
   async checkPermissions (request) {
     //
     // Uncomment this to test store without permissions
-    return { granted: true }
     //
     // Permissions might also be based on `request.method`, which can be
     // `put`, `post`, `get`, `getQuery`, `delete`.
@@ -93,6 +92,8 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
     // Note that when `request.method` is `put`, it might result in `request.inMethod`
     // being `implementInsert` (a new record) or `implementUpdate` (a new record)
 
+    // Example:
+    /*
     // No login, no joy
     if (!request.session.loggedIn) return { granted: false }
 
@@ -101,196 +102,107 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
 
     // All non-operators: nope
     return { granted: false }
-  }
-
-  // This is the heart of everything
-  async queryBuilder (request, op, param) {
-    let conditions
-    let joins
-    let args
-    let updateObject
-    let insertObject
-
-    switch (op) {
-      //
-      // GET
-      case 'fetch':
-        switch (param) {
-          case 'fieldsAndJoins':
-            return {
-              fields: this._fields(),
-              joins: this._joins()
-            }
-          // Conditions on fetch. For example, filter out records
-          // that do not belong to the user unless request.session.isAdmin
-          // is set to true
-          case 'conditionsAndArgs':
-            conditions = []
-            args = []
-
-            return { conditions, args }
-        }
-        break
-
-      // QUERY
-      case 'query':
-        switch (param) {
-          case 'fieldsAndJoins':
-            return {
-              fields: this._fields(),
-              joins: this._joins()
-            }
-          case 'conditionsAndArgs':
-            conditions = []
-            args = []
-
-            // Default conditions depending on searchSchema
-            // defaultConditionsAndArgs will add an equality condition for
-            // every field in the searchSchema that is also in the schema
-            // In this case, `field1`, `field2` and `field3` will be added as default
-            // conditions, whereas `search` won't
-            const { defaultConditions, defaultArgs } = await this.defaultConditionsAndArgs(request)  /* eslint-disable-line */
-            conditions = [...conditions, ...defaultConditions]
-            args = [...args, ...defaultArgs]
-
-            // Other keys ()
-            // DELETE THIS (as well as _otherKeysConditionsAndArgs()) IF THERE
-            // ARE NO EXTRA CONDITIONS BASED ON MORE QUERY STRING KEYS
-            const { otherKeysConditions, otherKeysArgs } = this._otherKeysConditionsAndArgs(request) /* eslint-disable-line */
-            conditions = [...conditions, ...otherKeysConditions]
-            args = [...args, ...otherKeysArgs]
-
-            return { conditions, args }
-        }
-        break
-
-      // INSERT
-      case 'insert':
-        switch (param) {
-          case 'insertObject':
-            insertObject = { ...request.body }
-
-            // ...
-            // Process insertObject here
-            // ...
-            return insertObject
-
-          // Extra operations after insert. E.g. insert children records etc.
-          case 'after':
-            return /* eslint-disable-line */
-        }
-        break
-
-      // UPDATE
-      case 'update':
-        switch (param) {
-          case 'updateObject':
-            updateObject = { ...request.body }
-
-            // ...
-            // Process updateObject here
-            // ...
-            return updateObject
-          case 'joins':
-            joins = []
-
-            // ...mode joins
-
-            return joins
-
-          // Conditions on update. For example, filter out records
-          // that do not belong to the user unless  request.session.isAdmin
-          // is set to true
-          case 'conditionsAndArgs':
-            conditions = []
-            args = []
-
-            // ...more conditions which can use joined fields if needed
-
-            return { conditions, args }
-          // Extra operations after update. E.g. update other tables etc.
-          case 'after':
-            return /* eslint-disable-line */
-        }
-        break
-
-      //
-      // DELETE
-      case 'delete':
-        switch (param) {
-          case 'tablesAndJoins':
-            return {
-              tables: [this.table],
-              joins: []
-            }
-          // Conditions on delete. For example, filter out records
-          // that do not belong to the user unless  request.session.isAdmin
-          // is set to true
-          case 'conditionsAndArgs':
-            conditions = []
-            args = []
-
-            // ...more conditions
-
-            return { conditions, args }
-          case 'after':
-            return /* eslint-disable-line */
-        }
-        break
-
-      // SORT
-      case 'sort':
-        return this.optionsSort(request)
-    }
-
-    return super.queryBuilder(request, op, param)
-  }
-
-  // Since `fetch` and `query` would normally return equivalent records, this is
-  // provided as an helper function
-  _joins () {
-    return [
-    ]
-    /* Examples of what it could be. Each entry should be a separate,
-       self contained join
-      'LEFT JOIN contacts ON contacts.storeTemplateId = contacts.id',
-    ]
     */
+    return { granted: true }
   }
 
-  // Since `fetch` and `query` would return the same fields, this is
-  // provided as an helper method.
-  // NOTE: the fields you can return will also depend on what tables you
-  // joined above.
-  _fields () {
-    return [
-      ...this.schemaFields(), /* eslint-disable-line comma-dangle */
-      // Some examples:
-      // 'contacts.name as contactName',
-      // 'contacts.*',
-      // "TRIM(CONCAT_WS(' ', contacts.firstName,contacts.lastName,contacts.companyName,c.companyName)) AS name"
-    ]
+  // Manipulate request.body as needed.
+  // NOTE: you can
+  async beforeValidate (request) {
+
+    // This happens BEFORE valudation. The store can accept extra-schema
+    // fields (as long as they are deleted, or validation will fail)
+    // E.g.
+    // if (request.body.weirdFieldNotInSchema === 10) request.body.someSchemaField = 11
+    // delete request.body.weirdFieldNotInSchema
   }
 
-  _otherKeysConditionsAndArgs (request) {
-    const otherKeysConditions = []
-    const otherKeysArgs = []
+  // ExistingErrors has the errors coming from checks earlier in the pipeline
+  //
+  // INPUT:
+  // * request.body -- data sent by the client
+  // * request.record (existing data if request.inMethod === 'implementUpdate')
+  // * { ...request.record, ...request.body } -- a "full" record made up of new and existing data
+  async validate (request, existingErrors) {
+    const errors = []
 
-    // If the search field is there, add it to the where string AND add arguments
-    // Example for a search:
-    const ch = request.options.conditionsHash
-    if (ch.search) {
-      ch.search.split(' ').forEach((s) => {
-        otherKeysConditions.push('(storeTemplate.field1 LIKE ? OR storeTemplate.field2 LIKE ?)')
-        // Add one argument per `?` in the query above
-        otherKeysArgs.push('%' + s + '%')
-        otherKeysArgs.push('%' + s + '%')
-      })
+    // Example:
+    // if (request.body.name === 'tony') errors.push({ field: 'name', message: 'Name already taken' })
+
+    return errors
+  }
+
+  /* ***********************************
+    *  DB HOOKS FOR FIELDS, JOINS, ETC.
+    ************************************
+  */
+  commonFields (request, op) { // `op` is 'query' or 'fetch'
+    return this.schemaFields()
+  }
+
+  commonJoins (request, op) { // `op` is 'query' or 'fetch
+    return []
+  }
+
+  fetchFieldsAndJoins (request) {
+    return {
+      fields: this.commonFields(request, 'fetch'),
+      joins: this.commonJoins(request, 'fetch')
     }
-    return { otherKeysConditions, otherKeysArgs }
   }
 
-  // DELETE THIS IF NO POST PROCESSING IS NEEDED
+  fetchConditionsAndArgs (request) {
+    return { conditions: [], args: [] }
+  }
+
+  queryFieldsAndJoins (request) {
+    return {
+      fields: this.commonFields(request, 'query'),
+      joins: this.commonJoins(request, 'query')
+    }
+  }
+
+  queryConditionsAndArgs (request) {
+    return this.optionsQueryConditionsAndArgs(request)
+  }
+
+  querySort (request) {
+    return this.optionsSort(request)
+  }
+
+  manipulateUpdateObject (request, updateObject) {
+    return updateObject
+  }
+
+  updateJoins (request) {
+    return []
+  }
+
+  updateConditionsAndArgs (request) {
+    return { conditions: [], args: [] }
+  }
+
+  afterUpdate (request) {
+  }
+
+  manipulateInsertObject (request, insertObject) {
+    return insertObject
+  }
+
+  afterInsert (request) {
+  }
+
+  deleteConditionsAndArgs (request) {
+    return { conditions: [], args: [] }
+  }
+
+  deleteTablesAndJoins (request) {
+    return {
+      tables: [this.table],
+      joins: []
+    }
+  }
+
   async transformResult (request, op, data) {
     const record = data
 
