@@ -172,7 +172,7 @@ const Mixin = (superclass) => class extends superclass {
 
           // Extra operations after insert. E.g. insert children records etc.
           case 'after':
-            this.afterInsert(request)
+            await this.afterInsert(request)
             return /* eslint-disable-line */
         }
         break
@@ -197,7 +197,7 @@ const Mixin = (superclass) => class extends superclass {
 
           // Extra operations after update. E.g. update other tables etc.
           case 'after':
-            this.afterUpdate(request)
+            await this.afterUpdate(request)
             return /* eslint-disable-line */
         }
         break
