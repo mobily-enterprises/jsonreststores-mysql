@@ -106,8 +106,8 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
     return { granted: true }
   }
 
-  // Manipulate request.body as needed.
-  // NOTE: you can
+  // Manipulate request.body as needed, before validation happens, for
+  // PUT and POST requests
   async beforeValidate (request) {
 
     // This happens BEFORE valudation. The store can accept extra-schema
