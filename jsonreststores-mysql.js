@@ -228,23 +228,23 @@ const Mixin = (superclass) => class extends superclass {
 
   fetchFieldsAndJoins (request) {
     return {
-      fields: this.fetchQueryFields(request, 'fetch'),
-      joins: this.fetchQueryJoins(request, 'fetch')
+      fields: this.commonFields(request, 'fetch'),
+      joins: this.commonJoins(request, 'fetch')
     }
   }
 
   queryFieldsAndJoins (request) {
     return {
-      fields: this.fetchQueryFields(request, 'query'),
-      joins: this.fetchQueryJoins(request, 'query')
+      fields: this.commonFields(request, 'query'),
+      joins: this.commonJoins(request, 'query')
     }
   }
 
-  fetchQueryFields (request) {
+  commonFields (request) {
     return this.schemaFields()
   }
 
-  fetchQueryJoins (request) {
+  commonJoins (request) {
     return []
   }
 
@@ -634,7 +634,7 @@ const Mixin = (superclass) => class extends superclass {
 
     // Load the record, if it is not yet present in request as `record`
     if (!request.record) {
-      request.record = await this.implementFetch(request) || null
+      request.record = await this.implementFetch(request)
     }
 
     // This is an important hook as developers might want to

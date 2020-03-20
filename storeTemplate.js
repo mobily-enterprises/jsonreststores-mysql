@@ -183,14 +183,18 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
     return { conditions: [], args: [] }
   }
 
-  afterUpdate (request) {
+  // It may change request.record (which will be returned) depending on
+  // after-update changes
+  async afterUpdate (request) {
   }
 
   manipulateInsertObject (request, insertObject) {
     return insertObject
   }
 
-  afterInsert (request) {
+  // It may change request.record (which will be returned) depending on
+  // after-insert changes
+  async afterInsert (request) {
   }
 
   deleteConditionsAndArgs (request) {
