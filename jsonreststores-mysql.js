@@ -650,7 +650,7 @@ const Mixin = (superclass) => class extends superclass {
     // This is an important hook as developers might want to
     // manipulate request.body before validation (e.g. non-schema custom fields)
     // or manipulate the request itself
-    await this.beforeValidate(request)
+    await this.beforeValidate(request, errors)
 
     const fullRecord = this.fullRecordOnUpdate || request.options.fullRecordOnUpdate
 
