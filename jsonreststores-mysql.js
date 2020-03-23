@@ -535,15 +535,18 @@ const Mixin = (superclass) => class extends superclass {
     // Assigning an empty record, since there is no data
     request.record = {}
 
+    // Prepare the errors array
+    let errors = []
+
     // This is an important hook as developers might want to
     // manipulate request.body before validation (e.g. non-schema custom fields)
     // or manipulate the request itself
-    await this.beforeValidate(request)
+    await this.beforeValidate(request, errors)
 
     const fullRecord = this.fullRecordOnInsert || request.options.fullRecordOnInsert
 
     // Validate input. This is light validation.
-    const { validatedObject, errors } = await this.schema.validate(request.body, {
+    const { validatedObject, errors: validationErrors } = await this.schema.validate(request.body, {
       emptyAsNull: request.options.emptyAsNull || this.emptyAsNull,
       onlyObjectValues: !fullRecord
     })
@@ -551,14 +554,18 @@ const Mixin = (superclass) => class extends superclass {
     request.originalBody = request.body
     request.body = validatedObject
 
+    // Enrich the error array with the extra validation errors (if any)
+    if (validationErrors.length) errors = [...errors, ...validationErrors]
+
     // Check for permissions
-    const { granted, message } = await this.checkPermissions(request)
+    const { granted, message } = await this.checkPermissions(request, errors)
     if (!granted) throw new this.constructor.ForbiddenError(message)
 
     // Call the validate hook. This will carry more expensive validation once
     // permissions are granted
-    const allErrors = [...errors, ...await this.validate(request, errors)]
-    if (allErrors.length) throw new this.constructor.UnprocessableEntityError({ errors: allErrors })
+    await this.validate(request, errors)
+
+    if (errors.length) throw new this.constructor.UnprocessableEntityError({ errors })
 
     // Work out the insert object
     const insertObject = await this.queryBuilder(request, 'insert', 'insertObject')
@@ -637,6 +644,9 @@ const Mixin = (superclass) => class extends superclass {
       request.record = await this.implementFetch(request)
     }
 
+    // Prepare the errors array
+    let errors = []
+
     // This is an important hook as developers might want to
     // manipulate request.body before validation (e.g. non-schema custom fields)
     // or manipulate the request itself
@@ -645,7 +655,7 @@ const Mixin = (superclass) => class extends superclass {
     const fullRecord = this.fullRecordOnUpdate || request.options.fullRecordOnUpdate
 
     // Validate input. This is light validation.
-    const { validatedObject, errors } = await this.schema.validate(request.body, {
+    const { validatedObject, errors: validationErrors } = await this.schema.validate(request.body, {
       emptyAsNull: request.options.emptyAsNull || this.emptyAsNull,
       onlyObjectValues: !fullRecord,
       record: request.record
@@ -654,14 +664,15 @@ const Mixin = (superclass) => class extends superclass {
     request.originalBody = request.body
     request.body = validatedObject
 
+    // Enrich the error array with the extra validation errors (if any)
+    if (validationErrors.length) errors = [...errors, ...validationErrors]
+
     // Check for permissions
-    const { granted, message } = await this.checkPermissions(request)
+    const { granted, message } = await this.checkPermissions(request, errors)
     if (!granted) throw new this.constructor.ForbiddenError(message)
 
-    // Call the validate hook. This will carry more expensive validation once
-    // permissions are granted
-    const allErrors = [...errors, ...await this.validate(request, errors)]
-    if (allErrors.length) throw new this.constructor.UnprocessableEntityError({ errors: allErrors })
+    await this.validate(request, errors)
+    if (errors.length) throw new this.constructor.UnprocessableEntityError({ errors })
 
     // Make up the crucial variables for the update: object, joins, and conditions/args
     const updateObject = await this.queryBuilder(request, 'update', 'updateObject')
