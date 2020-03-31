@@ -679,9 +679,8 @@ const Mixin = (superclass) => class extends superclass {
     const joins = await this.queryBuilder(request, 'update', 'joins')
     let { conditions, args } = await this.queryBuilder(request, 'update', 'conditionsAndArgs')
 
-    const { paramsConditions, paramsArgs } = this._paramsConditions(request)
-
     // Add mandatory conditions dictated by the passed params
+    const { paramsConditions, paramsArgs } = this._paramsConditions(request)
     conditions = conditions.concat(paramsConditions)
     args = args.concat(paramsArgs)
 
@@ -820,8 +819,13 @@ const Mixin = (superclass) => class extends superclass {
 
     // Get different select and different args if available
     const { fields, joins } = await this.queryBuilder(request, 'query', 'fieldsAndJoins')
-    const { conditions, args } = await this.queryBuilder(request, 'query', 'conditionsAndArgs')
+    let { conditions, args } = await this.queryBuilder(request, 'query', 'conditionsAndArgs')
     const { sort, args: sortArgs } = await this.queryBuilder(request, 'query', 'sort')
+
+    // Add mandatory conditions dictated by the passed params
+    const { paramsConditions, paramsArgs } = this._paramsConditions(request)
+    if (paramsConditions.length) conditions = conditions.concat(paramsConditions)
+    if (paramsArgs.length) args = args.concat(paramsArgs)
 
     // Add positional sort if there is no other sorting required
     if (sort.length === 0 && this.positionField) {
@@ -873,9 +877,8 @@ const Mixin = (superclass) => class extends superclass {
     const { fields, joins } = await this.queryBuilder(request, 'fetch', 'fieldsAndJoins')
     let { conditions, args } = await this.queryBuilder(request, 'fetch', 'conditionsAndArgs')
 
-    const { paramsConditions, paramsArgs } = this._paramsConditions(request)
-
     // Add mandatory conditions dictated by the passed params
+    const { paramsConditions, paramsArgs } = this._paramsConditions(request)
     conditions = conditions.concat(paramsConditions)
     args = args.concat(paramsArgs)
 
