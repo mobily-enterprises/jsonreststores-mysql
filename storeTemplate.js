@@ -108,7 +108,7 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
 
   // Manipulate request.body as needed, before validation happens, for
   // PUT and POST requests
-  async beforeValidate (request) {
+  async beforeValidate (request, errors) {
 
     // This happens BEFORE valudation. The store can accept extra-schema
     // fields (as long as they are deleted, or validation will fail)
@@ -124,13 +124,10 @@ class StoreTemplate extends MysqlMixin(HttpMixin(JsonRestStores)) {
   // * request.method
   // * request.record (existing data if request.inMethod === 'implementUpdate')
   // * { ...request.record, ...request.body } -- a "full" record made up of new and existing data
-  async validate (request, existingErrors) {
-    const errors = []
+  async validate (request, errors) {
 
     // Example:
     // if (request.body.name === 'tony') errors.push({ field: 'name', message: 'Name already taken' })
-
-    return errors
   }
 
   /* ***********************************
