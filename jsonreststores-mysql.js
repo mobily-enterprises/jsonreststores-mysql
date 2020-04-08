@@ -400,7 +400,7 @@ const Mixin = (superclass) => class extends superclass {
     let wherePositionFilter
     if (this.positionFilter.length === 0) wherePositionFilter = '1 = 1'
     else {
-      const source = request.record || request.body
+      const source = { ...request.record, ...request.body }
       const r = []
       for (const k of this.positionFilter) {
         if (source[k] === null || typeof source[k] === 'undefined') {
@@ -522,9 +522,6 @@ const Mixin = (superclass) => class extends superclass {
       delete request.body[this.beforeIdField]
     }
 
-    // This uses request.beforeId
-    await this._calculatePosition(request)
-
     // validateParam
     request.originalParams = request.params || {}
     request.params = await this._validateParams(request, true)
@@ -553,6 +550,9 @@ const Mixin = (superclass) => class extends superclass {
 
     request.originalBody = request.body
     request.body = validatedObject
+
+    // This uses request.beforeId
+    await this._calculatePosition(request)
 
     // Enrich the error array with the extra validation errors (if any)
     if (validationErrors.length) errors = [...errors, ...validationErrors]
