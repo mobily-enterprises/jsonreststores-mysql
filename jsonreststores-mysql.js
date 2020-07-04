@@ -299,20 +299,18 @@ const Mixin = (superclass) => class extends superclass {
   // UTIITY FUNCTIONS FOR HOOKS
   // **************************************************
 
+  expandSortField (field) {
+    if (!field.includes('.')) return `${this.table}.${field}`
+    return field
+  }
+
   optionsSort (request) {
     const optionsSort = request.options.sort
     const sort = []
     const args = []
     if (Object.keys(optionsSort).length) {
       for (const k in optionsSort) {
-        // If a field name starts with a space, then do not add the
-        // table name. This will allow developers to set the field as
-        // ' COALESCE(timeArrived, eta)' for example
-        if (k.includes('.') || k.startsWith(' ')) {
-          sort.push(`${k} ${Number(optionsSort[k]) === 1 ? 'DESC' : 'ASC'}`)
-        } else {
-          sort.push(`${this.table}.${k} ${Number(optionsSort[k]) === 1 ? 'DESC' : 'ASC'}`)
-        }
+        sort.push(`${this.expandSortField(k)} ${Number(optionsSort[k]) === 1 ? 'DESC' : 'ASC'}`)
       }
     }
     return { sort, args }
