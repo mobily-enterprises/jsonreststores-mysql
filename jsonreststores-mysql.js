@@ -23,6 +23,7 @@ const Mixin = (superclass) => class extends superclass {
   static get schema () { return null }
   static get searchSchema () { return null } // If not set, worked out from `schema` by constructor
   static get emptyAsNull () { return false }
+  static get canBeNull () { return false }
   static get beforeIdField () { return 'beforeId' } // Virtual field to place elements
   static get positionFilter () { return [] } // List of fields that will determine the subset
   static get defaultSort () { return null } // If set, it will be applied to all getQuery calls
@@ -39,6 +40,7 @@ const Mixin = (superclass) => class extends superclass {
     this.schema = Constructor.schema
     this.searchSchema = Constructor.searchSchema
     this.emptyAsNull = Constructor.emptyAsNull
+    this.canBeNull = Constructor.canBeNull
     this.defaultSort = Constructor.defaultSort
     this.fullRecordOnInsert = Constructor.fullRecordOnInsert
     this.fullRecordOnUpdate = Constructor.fullRecordOnUpdate
@@ -543,9 +545,18 @@ const Mixin = (superclass) => class extends superclass {
 
     const fullRecord = this.fullRecordOnInsert || request.options.fullRecordOnInsert
 
+    const emptyAsNull = typeof request.options.emptyAsNull !== 'undefined'
+      ? !!request.options.emptyAsNull
+      : this.emptyAsNull
+
+    const canBeNull = typeof request.options.canBeNull !== 'undefined'
+      ? !!request.options.canBeNull
+      : this.canBeNull
+
     // Validate input. This is light validation.
     const { validatedObject, errors: validationErrors } = await this.schema.validate(request.body, {
-      emptyAsNull: request.options.emptyAsNull || this.emptyAsNull,
+      emptyAsNull,
+      canBeNull,
       onlyObjectValues: !fullRecord
     })
 
