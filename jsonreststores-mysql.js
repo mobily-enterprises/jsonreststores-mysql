@@ -601,6 +601,12 @@ const Mixin = (superclass) => class extends superclass {
     // After insert: post-processing of the record
     await this.queryBuilder(request, 'insert', 'after')
 
+    // Sneak beforeId back in. This will tell the client
+    // where to place the record, allowing for (maybe) repositioning
+    if (typeof request.beforeId !== 'undefined') {
+      request.record.beforeId = request.beforeId
+    }
+
     return request.record
   }
 
@@ -712,6 +718,12 @@ const Mixin = (superclass) => class extends superclass {
 
     // After update: post-processing of the record
     await this.queryBuilder(request, 'update', 'after')
+
+    // Sneak beforeId back in. This will tell the client
+    // where to place the record, allowing for (maybe) repositioning
+    if (typeof request.beforeId !== 'undefined') {
+      request.record.beforeId = request.beforeId
+    }
 
     return request.record
   }
