@@ -382,6 +382,7 @@ const Mixin = (superclass) => class extends superclass {
     // It has side-effects (it changes request.body AND it changes the DB)
     const last = async () => {
       request.body[this.positionField] = (await this.connection.queryP(`SELECT max(${this.positionField}) as maxPosition FROM ${this.table} WHERE ${wherePositionFilter}`, positionQueryArgs))[0].maxPosition + 1
+      request.beforeId = null
     }
 
     // No position field: exit right away
