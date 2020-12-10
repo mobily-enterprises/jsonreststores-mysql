@@ -424,12 +424,14 @@ const Mixin = (superclass) => class extends superclass {
     // therefore changing positio fields would be strange.
     // On the other hand, if a field is soft-deleted, it will need to have its
     // place reset since its position makes no sense in the new "group"
-    if (!_positionFiltersFieldsSame(request)) {
-      await last()
-    }
+
+    // DELETED since an element might be repositioned to a new group, DOH!
+    // if (!_positionFiltersFieldsSame(request)) {
+    //   await last()
+    // }
 
     // undefined    => leave it where it was (if it had a position) or place it last (if it didn't have a position)
-    else if (typeof request.beforeId === 'undefined') {
+    if (typeof request.beforeId === 'undefined') {
       if (!prevPosition) await last()
       else request.body[this.positionField] = prevPosition
 
