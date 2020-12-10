@@ -362,6 +362,8 @@ const Mixin = (superclass) => class extends superclass {
   async _calculatePosition (request) {
     //
     //
+    /*
+    // Currently unused
     const _positionFiltersFieldsSame = (request) => {
       // If there is no original request.record, there is nothing to check
       if (!request.record) return true
@@ -377,6 +379,7 @@ const Mixin = (superclass) => class extends superclass {
       }
       return true
     }
+    */
 
     // This function will be called a lot in case the record is to be placed last.
     // It has side-effects (it changes request.body AND it changes the DB)
