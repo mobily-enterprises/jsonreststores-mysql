@@ -125,6 +125,229 @@ const Mixin = (superclass) => class extends superclass {
     return l
   }
 
+  // Synchronise store schema definition to DB
+  async schemaDbSync () {
+    function makeSqlDefinition (columnName) {
+      const field = this.schema.structure[columnName]
+      let sqlType
+      let trim = 256
+      if (field.dbType) sqlType = field.dbType
+      else {
+        switch (field.type) {
+          case 'number':
+          case 'id':
+            sqlType = 'INT'
+            break
+          case 'string':
+            if (field.trim) trim = field.trim
+            sqlType = `VARCHAR(${trim})`
+            break
+          case 'boolean':
+            sqlType = 'TINYINT'
+            break
+          case 'date':
+            sqlType = 'DATE'
+            break
+          case 'timestamp':
+            sqlType = 'TIMESTAMP'
+            break
+          case 'blob':
+            sqlType = 'BLOB'
+            break
+        }
+      }
+
+      // NULL clause
+      const nullOrNotNull = field.canBeNull ? 'NULL' : 'NOT NULL'
+
+      // Default value, giving priority to dbDefault
+      let defaultValue
+      if (typeof field.dbDefault !== 'undefined') defaultValue = `DEFAULT '${field.dbDefault}'`
+      else if (typeof field.default !== 'undefined') defaultValue = `DEFAULT '${field.default}'`
+      else defaultValue = ''
+
+      // AUTO_INCREMENT clause
+      return `\`${columnName}\` ${sqlType} ${nullOrNotNull} ${defaultValue}`
+    }
+
+    async function maybeChangePrimaryKey (primaryKeyColumn) {
+      //
+      // If the primary key hasn't changed, don't do anything
+      if (primaryKeyColumn && primaryKeyColumn.COLUMN_NAME === this.idProperty) {
+        return
+      }
+
+      // ID column has changed. This is a tricky situation, especially because of
+      // auto_increment which will get in the way
+      const oldPrimaryKeyColumnName = primaryKeyColumn.COLUMN_NAME
+
+      // First of all, if the OLD primary key has AUTO_INCREMENT, then
+      // AUTO_INCREMENT must be taken out
+      if (primaryKeyColumn.EXTRA === 'auto_increment') {
+        await this.connection.queryP('SET foreign_key_checks = 0')
+        const pkc = primaryKeyColumn
+        const defWithoutAutoIncrement = `${pkc.COLUMN_NAME} ${pkc.COLUMN_TYPE} ${pkc.IS_NULLABLE === 'YES' ? 'NULL' : 'NOT NULL'} ${typeof pkc.COLUMN_DEFAULT !== 'undefined' && pkc.COLUMN_KEY !== 'PRI' ? 'DEFAULT ' + pkc.COLUMN_DEFAULT : ''}`
+        await this.connection.queryP(`ALTER TABLE \`${this.table}\` CHANGE \`${oldPrimaryKeyColumnName}\` ${defWithoutAutoIncrement}`)
+        await this.connection.queryP('SET foreign_key_checks = 1')
+      }
+
+      // Check that there are INDEXES available for the "old" id
+      // This is crucial since the next statement, DROP PRIMARY KEY, ADD PRIMARY_KEY
+      // will fail if the field is still being referenced in the DB and
+      // it's left without key
+      const indexIsThere = await this.connection.queryP(`SHOW INDEX FROM \`${this.table}\` WHERE Key_name <> 'PRIMARY' AND Seq_in_index = 1 AND Column_name='${oldPrimaryKeyColumnName}'`)
+      if (!indexIsThere.length) {
+        const dbIndex = schemaFieldsAsArray.find(definition => definition.name === this.idProperty).dbIndex || `jrs_${oldPrimaryKeyColumnName}`
+        await this.connection.queryP(`ALTER TABLE \`${this.table}\` ADD INDEX \`${dbIndex}\`(\`${oldPrimaryKeyColumnName}\`)`)
+      }
+
+      // Drop the old primary key, and add the new primary key
+      await this.connection.queryP(`ALTER TABLE \`${this.table}\` DROP PRIMARY KEY, ADD PRIMARY KEY (\`${this.idProperty}\`)`)
+      return true
+    }
+
+    const tableAlreadyExists = (await this.connection.queryP(`SHOW TABLES like '${this.table}'`)).length
+    if (!tableAlreadyExists) await this.connection.queryP(`CREATE TABLE \`${this.table}\` (__dummy__ INT(1) )`)
+
+    const columns = await this.connection.queryP(`SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '${this.table}'`)
+    const indexes = await this.connection.queryP(`SHOW index FROM \`${this.table}\``)
+    const constraints = await this.connection.queryP(`SELECT * from INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = '${this.table}'`)
+    // select * from information_schema.table_constraints where constraint_schema = 'sasit-development';
+
+    // Make a hash of all columns
+    const columnsHash = columns.reduce((map, column) => {
+      map[column.COLUMN_NAME] = column
+      return map
+    }, {})
+
+    const primaryKeyColumn = columns.find(el => el.COLUMN_KEY === 'PRI')
+
+    // Turn the schema fields into a searchable array. It will be used as an
+    // array to search for the auto-increment field, and to iterate through it
+    const schemaFieldsAsArray = Object.keys(this.schema.structure).map(k => ({ ...this.schema.structure[k], name: k }))
+
+    // Work out which one the auto_increment field will be
+    let autoIncrementField = schemaFieldsAsArray.find(el => el.autoIncrement)
+    if (!autoIncrementField) autoIncrementField = schemaFieldsAsArray.find(el => el.name === this.idProperty)
+    const autoIncrementFieldName = autoIncrementField.name
+
+    // This is important in case the primary key has changed
+    if (primaryKeyColumn) await maybeChangePrimaryKey.call(this, primaryKeyColumn)
+
+    const dbIndexes = []
+    const dbConstraints = []
+    for (let i = 0, l = schemaFieldsAsArray.length; i < l; i++) {
+      const field = schemaFieldsAsArray[i]
+
+      const creatingNewColumn = !columnsHash[field.name]
+
+      const changeOrAddStatement = creatingNewColumn ? 'ADD COLUMN' : `CHANGE \`${field.name}\``
+
+      const def = makeSqlDefinition.call(this, field.name)
+      // If it's a new table, and it's the primary key column, then it's already going to be
+      // auto_increment. So, it must be defined as primary key
+      const maybePrimaryKey = (creatingNewColumn && field.name === this.idProperty) ? 'PRIMARY KEY' : ''
+      const maybeAutoIncrement = autoIncrementFieldName === field.name ? 'AUTO_INCREMENT' : ''
+      const maybeAfter = i ? `AFTER \`${schemaFieldsAsArray[i - 1].name}\`` : ''
+
+      const sqlQuery = `ALTER TABLE \`${this.table}\` ${changeOrAddStatement} ${def} ${maybePrimaryKey} ${maybeAutoIncrement} ${maybeAfter}`
+
+      await this.connection.queryP(sqlQuery)
+
+      // For searchable and dbIndex fields, add an index
+      if (field.dbIndex || field.searchable) {
+        if (columnsHash[field.name] && field.name !== this.idProperty) {
+          dbIndexes.push({
+            column: field.name,
+            unique: field.dbUnique,
+            name: field.dbIndexName
+          })
+        }
+      }
+
+      if (field.dbConstraint) {
+        const dbc = field.dbConstraint
+        dbConstraints.push({
+          source: field.name,
+          table: dbc.table,
+          store: dbc.store,
+          column: dbc.column,
+          name: dbc.name
+        })
+      }
+    }
+
+    // Add anything listed in dbExtraIndexes in the list of possible
+    // indexes to all
+    if (this.dbExtraIndexes) {
+      for (let i = 0, l = this.dbExtraIndexes.length; i < l; i++) {
+        const ei = this.dbExtraIndexes[i]
+        dbIndexes.push({
+          column: ei.column,
+          unique: !ei.unique,
+          name: ei.name
+        })
+      }
+    }
+
+    // If it's a newly created table, delete the dummy column
+    if (columnsHash.__dummy__) await this.connection.queryP(`ALTER TABLE \`${this.table}\` DROP COLUMN \`__dummy__\``)
+
+    // Add db indexes
+    for (let i = 0, l = dbIndexes.length; i < l; i++) {
+      const dbi = dbIndexes[i]
+
+      // Handle multiple columns
+      let columns
+      if (!Array.isArray(dbi.column)) columns = `\`${dbi.column}\``
+      else columns = dbi.column.map(c => '`' + c + '`').join(',')
+
+      // Make up an index name if needed
+      let indexName
+      if (dbi.dbIndexName) indexName = dbi.dbIndexName
+      else {
+        if (!Array.isArray(dbi.column)) indexName = `jrs_${dbi.column}`
+        else indexName = 'jrs_' + dbi.column.join('_')
+      }
+
+      // If the index already exists, don't do anything
+      if (indexes.find(i => i.Key_name === indexName)) continue
+
+      const sqlQuery = `ALTER TABLE \`${this.table}\` ADD ${dbi.unique ? 'UNIQUE' : ''} INDEX \`${indexName}\` (${columns})`
+      await this.connection.queryP(sqlQuery)
+    }
+
+    // Add db constraints
+    for (let i = 0, l = dbConstraints.length; i < l; i++) {
+      const dbc = dbConstraints[i]
+
+      let table
+      let column
+      let name
+
+      if (dbc.table) table = dbc.table
+      else if (dbc.store) table = this.stores[dbc.store].table
+
+      if (dbc.column) column = dbc.column
+      else column = this.stores[dbc.store].idProperty
+
+      if (dbc.name) name = dbc.name
+      else name = `jrs_${dbc.source}_to_${table}_${column}`
+
+      if (constraints.find(c => c.CONSTRAINT_NAME === name)) return
+
+      const sqlQuery = `
+      ALTER TABLE \`${this.table}\`
+      ADD CONSTRAINT \`${name}\`
+      FOREIGN KEY (\`${dbc.source}\`)
+      REFERENCES \`${table}\` (\`${column}\`)
+        ON DELETE NO ACTION
+        ON UPDATE NO ACTION`
+
+      await this.connection.queryP(sqlQuery)
+    }
+  }
+
   // **************************************************
   // QUERY BUILDER
   // **************************************************
