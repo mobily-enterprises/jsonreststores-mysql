@@ -154,6 +154,8 @@ const Mixin = (superclass) => class extends superclass {
           case 'blob':
             sqlType = 'BLOB'
             break
+          default:
+            throw new Error(`${field.type} not converted automatically. Use dbType instead`)
         }
       }
 
