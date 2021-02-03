@@ -616,6 +616,9 @@ const Mixin = (superclass) => class extends superclass {
     // No position field: exit right away
     if (typeof this.positionField === 'undefined') return
 
+    // The user is manually setting a position, which should be allowed
+    if (typeof request.body[this.positionField] !== 'undefined') return
+
     // Work really hard to find out what the previous position was
     // Note: request.record might be empty even in case of update in case
     // of usage via API (implementUpdate() with dummy/incomplete request)
