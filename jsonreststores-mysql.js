@@ -15,6 +15,8 @@ const Mixin = (superclass) => class extends superclass {
   static get connection () { return null }
   static get table () { return null }
 
+  static get positionField () { return null } // List of fields that will determine the subset
+
   constructor () {
     super()
     const promisify = require('util').promisify
@@ -22,34 +24,7 @@ const Mixin = (superclass) => class extends superclass {
     this.connection = this.constructor.connection
     this.connection.queryP = promisify(this.connection.query)
     this.table = this.constructor.table
-
-    // The schema must be defined
-    if (this.schema == null) {
-      throw (new Error('You must define a schema'))
-    }
-
-    // By default, paramIds are set in schema as { type: 'id' } so that developers
-    // can be lazy when defining their schemas
-    // SIDE_EFFECT: schema.structure changed
-    let k
-    for (let i = 0, l = this.paramIds.length; i < l; i++) {
-      k = this.paramIds[i]
-      if (typeof (this.schema.structure[k]) === 'undefined') {
-        this.schema.structure[k] = { type: 'id' }
-      }
-    }
-
-    // If onlineSearchSchema wasn't defined, then set it as a copy of the schema where
-    // fields are `searchable`, EXCLUDING the paramIds fields.
-    if (this.searchSchema == null) {
-      const searchSchemaStructure = { }
-      for (k in this.schema.structure) {
-        if (this.schema.structure[k].searchable && this.paramIds.indexOf(k) === -1) {
-          searchSchemaStructure[k] = this.schema.structure[k]
-        }
-      }
-      this.searchSchema = new this.schema.constructor(searchSchemaStructure)
-    }
+    this.positionField = this.constructor.positionField
   }
 
   implementInsertSql (joins) {
