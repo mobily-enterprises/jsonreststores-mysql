@@ -16,6 +16,7 @@ const Mixin = (superclass) => class extends superclass {
   static get table () { return null }
 
   static get positionField () { return null } // List of fields that will determine the subset
+  static get positionFilter () { return [] } // List of fields that will determine the subset
 
   constructor () {
     super()
@@ -25,6 +26,7 @@ const Mixin = (superclass) => class extends superclass {
     this.connection.queryP = promisify(this.connection.query)
     this.table = this.constructor.table
     this.positionField = this.constructor.positionField
+    this.positionFilter = this.constructor.positionFilter
   }
 
   implementInsertSql (joins) {
