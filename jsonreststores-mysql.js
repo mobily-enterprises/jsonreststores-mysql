@@ -15,34 +15,9 @@ const Mixin = (superclass) => class extends superclass {
   static get connection () { return null }
   static get table () { return null }
 
-  static get sortableFields () { return [] }
-  static get schema () { return null }
-  static get searchSchema () { return null } // If not set, worked out from `schema` by constructor
-  static get emptyAsNull () { return false }
-  static get canBeNull () { return false }
-  static get beforeIdField () { return 'beforeId' } // Virtual field to place elements
-  static get positionFilter () { return [] } // List of fields that will determine the subset
-  static get defaultSort () { return null } // If set, it will be applied to all getQuery calls
-  static get fullRecordOnUpdate () { return false } //  A write will only affects the passed fields, not the whole record
-  static get fullRecordOnInsert () { return true } //  A write will only affects the passed fields, not the whole record
-
   constructor () {
     super()
-    const Constructor = this.constructor
-
     const promisify = require('util').promisify
-
-    this.sortableFields = Constructor.sortableFields
-    this.schema = Constructor.schema
-    this.searchSchema = Constructor.searchSchema
-    this.emptyAsNull = Constructor.emptyAsNull
-    this.canBeNull = Constructor.canBeNull
-    this.defaultSort = Constructor.defaultSort
-    this.fullRecordOnInsert = Constructor.fullRecordOnInsert
-    this.fullRecordOnUpdate = Constructor.fullRecordOnUpdate
-    this.beforeIdField = this.constructor.beforeIdField
-    this.positionField = this.constructor.positionField
-    this.positionFilter = this.constructor.positionFilter
 
     this.connection = this.constructor.connection
     this.connection.queryP = promisify(this.connection.query)
@@ -377,7 +352,7 @@ const Mixin = (superclass) => class extends superclass {
     }
 
     // No position field: exit right away
-    if (typeof this.positionField === 'undefined') return
+    if (!this.positionField) return
 
     // The user is manually setting a position, which should be allowed
     if (typeof request.body[this.positionField] !== 'undefined') return
