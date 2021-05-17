@@ -15,7 +15,6 @@ const Mixin = (superclass) => class extends superclass {
   static get connection () { return null }
   static get table () { return null }
 
-  static get positionField () { return null } // List of fields that will determine the subset
   static get positionFilter () { return [] } // List of fields that will determine the subset
 
   constructor () {
@@ -23,10 +22,10 @@ const Mixin = (superclass) => class extends superclass {
     const promisify = require('util').promisify
 
     this.connection = this.constructor.connection
-    this.connection.queryP = promisify(this.connection.query)
     this.table = this.constructor.table
-    this.positionField = this.constructor.positionField
     this.positionFilter = this.constructor.positionFilter
+
+    this.connection.queryP = promisify(this.connection.query)
   }
 
   implementInsertSql (joins) {
@@ -72,6 +71,7 @@ const Mixin = (superclass) => class extends superclass {
     // After insert: post-processing of the record
     await this.afterInsert(request)
 
+    // Requested by the API
     // implementUpdate() needs to have this in order to restore the
     // previously deleted record.beforeId
     this.restoreBeforeIdInRecord(request)
@@ -132,6 +132,7 @@ const Mixin = (superclass) => class extends superclass {
     // After update: post-processing of the record
     await this.afterUpdate(request)
 
+    // Requested by the API
     // implementUpdate() needs to have this in order to restore the
     // previously deleted record.beforeId
     this.restoreBeforeIdInRecord(request)
