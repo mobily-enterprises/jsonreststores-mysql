@@ -576,7 +576,8 @@ const Mixin = (superclass) => class extends superclass {
         switch (field.type) {
           case 'number':
           case 'id':
-            sqlType = 'INT'
+            if (field.float) sqlType = 'FLOAT'
+            else sqlType = 'INT'
             break
           case 'string':
             if (field.trim) trim = field.trim
