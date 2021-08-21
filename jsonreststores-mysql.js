@@ -31,7 +31,7 @@ const Mixin = (superclass) => class extends superclass {
     this.connection.queryP = promisify(this.connection.query)
   }
 
-  implementInsertSql (joins) {
+  async implementInsertSql (joins) {
     const updateString = 'INSERT INTO'
     return `${updateString} \`${this.table}\` SET ?`
   }
@@ -45,15 +45,26 @@ const Mixin = (superclass) => class extends superclass {
   //   request.body[beforeIdField] (beforeId placed back into body so that client gets it)
 
   async implementInsert (request) {
+    let beforeId
+
     this._checkVars()
 
     await super.implementInsert(request)
 
-    // This uses request.beforeId
+    // This uses body.beforeId
     await this._calculatePosition(request)
 
-    // Work out the insert object
-    const insertObject = await this.manipulateInsertObject(request, { ...request.body }) // hook
+    // Zap beforeId from body, so that the insertObject
+    // is built properly without dealing with beforeId as a special case
+
+    if (this.positioning) {
+      beforeId = request.body[this.beforeIdField]
+      if (typeof beforeId !== 'undefined') {
+        delete request.body[this.beforeIdField]
+      }
+    }
+
+    const insertObject = await this.manipulateInsertObject(request, {...request.body } ) // hook
 
     // Run the query
     const query = await this.implementInsertSql()
@@ -74,11 +85,15 @@ const Mixin = (superclass) => class extends superclass {
     // After insert: post-processing of the record
     await this.afterInsert(request)
 
-    // Requested by the API
-    // implementUpdate() needs to have this in order to restore the
-    // previously deleted record.beforeId
-    this.restoreBeforeIdInRecord(request)
+    // Re-add beforeId in case it was zapped in the first place.
+    // The client might need this info to place the element in the
+    // right spot in the DOM
+    if (typeof beforeId !== 'undefined') {
+      request.record.beforeId = beforeId
+      request.body.beforeId = beforeId
+    }
 
+    // Return the record, including beforeId
     return request.record
   }
 
@@ -101,15 +116,26 @@ const Mixin = (superclass) => class extends superclass {
   //   request.body[beforeIdField] (beforeId placed back into body so that client gets it)
   //
   async implementUpdate (request) {
+    let beforeId
+
     this._checkVars()
 
     await super.implementUpdate(request)
 
     // This uses request.beforeId
     await this._calculatePosition(request)
+    
+    // Zap beforeId from body, so that the updateObject
+    // is built properly without dealing with beforeId as a special case
+    if (this.positioning) {
+      beforeId = request.body[this.beforeIdField]
+      if (typeof beforeId !== 'undefined') {
+        delete request.body[this.beforeIdField]
+      }
+    }
 
     // Make up the crucial variables for the update: object, joins, and conditions/args
-    const updateObject = await this.manipulateUpdateObject(request, { ...request.body }) // hook
+    const updateObject = await this.manipulateUpdateObject(request, {...request.body }) // hook
     const joins = await this.updateJoins(request) // hook
     let { conditions, args } = await this.updateConditionsAndArgs(request) // hook
 
@@ -135,11 +161,15 @@ const Mixin = (superclass) => class extends superclass {
     // After update: post-processing of the record
     await this.afterUpdate(request)
 
-    // Requested by the API
-    // implementUpdate() needs to have this in order to restore the
-    // previously deleted record.beforeId
-    this.restoreBeforeIdInRecord(request)
+    // Re-add beforeId in case it was zapped in the first place.
+    // The client might need this info to place the element in the
+    // right spot in the DOM
+    if (typeof beforeId !== 'undefined') {
+      request.body.beforeId = beforeId
+      request.record.beforeId = beforeId
+    }
 
+    // Return the record, including beforeId
     return request.record
   }
 
@@ -325,11 +355,14 @@ const Mixin = (superclass) => class extends superclass {
     }
     */
 
+    if (body[this.beforeIdField] !== 'undefined') {
+      beforeId = body[this.beforeIdField]
+    }
+
     // This function will be called a lot in case the record is to be placed last.
     // It has side-effects (it changes request.body AND it changes the DB)
     const last = async () => {
       request.body[this.positionField] = (await this.connection.queryP(`SELECT max(${this.positionField}) as maxPosition FROM ${this.table} WHERE ${wherePositionFilter}`, positionQueryArgs))[0].maxPosition + 1
-      request.beforeId = null
     }
 
     // No positioning: exit right away
@@ -381,18 +414,18 @@ const Mixin = (superclass) => class extends superclass {
     // }
 
     // undefined    => leave it where it was (if it had a position) or place it last (if it didn't have a position)
-    if (typeof request.beforeId === 'undefined') {
+    if (typeof beforeId === 'undefined') {
       if (!prevPosition) await last()
       else request.body[this.positionField] = prevPosition
 
     // null         => place it last
-    } else if (request.beforeId === null) {
+    } else if (beforeId === null) {
       await last()
 
     // number       => valid record   => place it before that record, overwriting previous position
     //                 Invalid record => place it last
     } else {
-      const beforeIdItem = (await this.connection.queryP(`SELECT ${this.table}.${this.idProperty}, ${this.positionField} FROM ${this.table} WHERE ${this.table}.${this.idProperty} = ? AND ${wherePositionFilter}`, [request.beforeId, ...positionQueryArgs]))[0]
+      const beforeIdItem = (await this.connection.queryP(`SELECT ${this.table}.${this.idProperty}, ${this.positionField} FROM ${this.table} WHERE ${this.table}.${this.idProperty} = ? AND ${wherePositionFilter}`, [beforeId, ...positionQueryArgs]))[0]
 
       // number       => valid record   => place it before that record, "making space"
       if (beforeIdItem) {
