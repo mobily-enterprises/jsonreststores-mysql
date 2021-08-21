@@ -15,6 +15,7 @@ const Mixin = (superclass) => class extends superclass {
   static get connection () { return null }
   static get table () { return null }
 
+  static get positionField () { return 'position' } // Field that will store the position of a record
   static get positionFilter () { return [] } // List of fields that will determine the subset
 
   constructor () {
@@ -23,6 +24,8 @@ const Mixin = (superclass) => class extends superclass {
 
     this.connection = this.constructor.connection
     this.table = this.constructor.table
+ 
+    this.positionField = this.constructor.positionField
     this.positionFilter = this.constructor.positionFilter
 
     this.connection.queryP = promisify(this.connection.query)
@@ -219,7 +222,7 @@ const Mixin = (superclass) => class extends superclass {
     if (paramsArgs.length) args = args.concat(paramsArgs)
 
     // Add positional sort if there is no other sorting required
-    if (sort.length === 0 && this.positionField) {
+    if (sort.length === 0 && this.positioning) {
       sort.push(`${this.positionField}`)
     }
 
@@ -329,8 +332,8 @@ const Mixin = (superclass) => class extends superclass {
       request.beforeId = null
     }
 
-    // No position field: exit right away
-    if (!this.positionField) return
+    // No positioning: exit right away
+    if (!this.positioning) return
 
     // The user is manually setting a position, which should be allowed
     if (typeof request.body[this.positionField] !== 'undefined') return
@@ -570,31 +573,47 @@ const Mixin = (superclass) => class extends superclass {
     function makeSqlDefinition (columnName) {
       const field = this.schema.structure[columnName]
       let sqlType
-      let trim = 256
+      let length = 256
       if (field.dbType) sqlType = field.dbType
       else {
         switch (field.type) {
           case 'number':
-          case 'id':
             if (field.float) sqlType = 'FLOAT'
+            else if (field.currency) sqlType = 'NUMERIC (10,2)'
+            else if (field.longInt) sqlType = 'LONGINT'
             else sqlType = 'INT'
             break
+          case 'id':
+            sqlType = 'INT'
+            break
           case 'string':
-            if (field.trim) trim = field.trim
-            sqlType = `VARCHAR(${trim})`
+            if (field.length) length = field.length
+            if (field.asText) sqlType = 'TEXT'
+            else sqlType = 'VARCHAR'
+            sqlType = `${sqlTyle}(${length})`
             break
           case 'boolean':
             sqlType = 'TINYINT'
             break
+          case 'timestamp':
+            sqlType = 'BIGINT'
+            break
+          case 'blob':
+            if (field.length) length = field.length
+            sqlType = `${BLOB}(${length})`
+            break
           case 'date':
             sqlType = 'DATE'
             break
-          case 'timestamp':
-            sqlType = 'TIMESTAMP'
+          case 'dateTime':
+            sqlType = 'DATETIME'
             break
-          case 'blob':
-            sqlType = 'BLOB'
+            
+          case 'object':
+          case 'array':
+            sqlType = 'JSON'
             break
+              
           default:
             throw new Error(`${field.type} not converted automatically. Use dbType instead`)
         }
@@ -698,7 +717,8 @@ const Mixin = (superclass) => class extends superclass {
       await this.connection.queryP(sqlQuery)
 
       // For searchable and dbIndex fields, add an index
-      if (field.dbIndex || field.searchable) {
+      // Note: positionField is ALWAYS indexed
+      if (field.dbIndex || field.searchable || field.name === this.positionField ) {
         if (columnsHash[field.name] && field.name !== this.idProperty) {
           dbIndexes.push({
             column: field.name,
