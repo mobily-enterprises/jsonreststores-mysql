@@ -704,7 +704,7 @@ const Mixin = (superclass) => class extends superclass {
     const tableAlreadyExists = (await this.connection.queryP(`SHOW TABLES like '${this.table}'`)).length
     if (!tableAlreadyExists) await this.connection.queryP(`CREATE TABLE \`${this.table}\` (__dummy__ INT(1) )`)
 
-    const columns = await this.connection.queryP(`SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '${this.table}'`)
+    const columns = await this.connection.queryP(`SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND table_name = '${this.table}'`)
     const indexes = await this.connection.queryP(`SHOW index FROM \`${this.table}\``)
     const constraints = await this.connection.queryP(`SELECT * from INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = '${this.table}'`)
     // select * from information_schema.table_constraints where constraint_schema = 'sasit-development';
@@ -813,6 +813,8 @@ const Mixin = (superclass) => class extends superclass {
       await this.connection.queryP(sqlQuery)
     }
 
+
+    debugger
     // Add db constraints
     for (let i = 0, l = dbConstraints.length; i < l; i++) {
       const dbc = dbConstraints[i]
