@@ -623,7 +623,7 @@ const Mixin = (superclass) => class extends superclass {
             if (field.length) length = field.length
             if (field.asText) sqlType = 'TEXT'
             else sqlType = 'VARCHAR'
-            sqlType = `${sqlTyle}(${length})`
+            sqlType = `${sqlType}(${length})`
             break
           case 'boolean':
             sqlType = 'TINYINT'
