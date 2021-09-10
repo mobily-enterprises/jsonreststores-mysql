@@ -355,8 +355,10 @@ const Mixin = (superclass) => class extends superclass {
     }
     */
 
-    if (body[this.beforeIdField] !== 'undefined') {
-      beforeId = body[this.beforeIdField]
+    let beforeId
+
+    if (request.body[this.beforeIdField] !== 'undefined') {
+      beforeId = request.body[this.beforeIdField]
     }
 
     // This function will be called a lot in case the record is to be placed last.
