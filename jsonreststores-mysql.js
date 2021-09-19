@@ -76,8 +76,17 @@ const Mixin = (superclass) => class extends superclass {
     // Make up a bogus request (just with request.params using insertId)
     // to re-fetch the record and return it
     // NOTE: request.params is all implementFetch uses
-    const bogusRequest = { options: {}, session: request.session, params: { [this.idProperty]: insertResult.insertId } }
-    request.record = await this.implementFetch(bogusRequest)
+    const requestWithId = this.copyRequest(request, { 
+      options: {}, 
+      params: { [this.idProperty]: insertResult.insertId }
+    })
+
+    request.record = await this.implementFetch(requestWithId)
+
+    // It MUST be possible to refetch after insert
+    if (!request.record) {
+      throw new Error('Could not re-fetch record straight after insert')
+    }
 
     // This could be useful to the 'after' hook
     request.insertObject = insertObject
@@ -152,8 +161,12 @@ const Mixin = (superclass) => class extends superclass {
 
     // Re-fetch the record and return it
     // NOTE: request.params is all implementFetch uses
+    // There is no need to mess with the request, since the ID
+    // is there in the params
     request.originalRecord = request.record
-    request.record = await this.implementFetch(request)
+    request.record = await this.implementFetch(this.copyRequest(request))
+
+
 
     // This could be useful to the 'after' hook
     request.hookResults = { updateObject, joins, conditions, args }
@@ -309,7 +322,11 @@ const Mixin = (superclass) => class extends superclass {
     // Get the record
     request.record = records[0]
 
-    // Requested by the API: when implementing implementFetch(), this function
+    // Nothing was returned: there is no point in checking permissions,
+    // transform results, etc.: it will simply return null 
+    if (!request.record) return null
+
+    // Requested by the API: when implementing implementFetch, this function
     // must be called when request.record is set
     this.implementFetchPermissions(request)
 
