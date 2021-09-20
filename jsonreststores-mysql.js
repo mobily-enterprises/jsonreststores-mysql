@@ -24,7 +24,7 @@ const Mixin = (superclass) => class extends superclass {
 
     this.connection = this.constructor.connection
     this.table = this.constructor.table
- 
+
     this.positionField = this.constructor.positionField
     this.positionFilter = this.constructor.positionFilter
 
@@ -102,6 +102,9 @@ const Mixin = (superclass) => class extends superclass {
       request.body.beforeId = beforeId
     }
 
+    // give a chance to mixins to "see" the record before sending it
+    await this.beforeSend(request)
+
     // Return the record, including beforeId
     return request.record
   }
@@ -133,7 +136,7 @@ const Mixin = (superclass) => class extends superclass {
 
     // This uses request.beforeId
     await this._calculatePosition(request)
-    
+
     // Zap beforeId from body, so that the updateObject
     // is built properly without dealing with beforeId as a special case
     if (this.positioning) {
@@ -166,8 +169,6 @@ const Mixin = (superclass) => class extends superclass {
     request.originalRecord = request.record
     request.record = await this.implementFetch(this.copyRequest(request))
 
-
-
     // This could be useful to the 'after' hook
     request.hookResults = { updateObject, joins, conditions, args }
 
@@ -181,6 +182,9 @@ const Mixin = (superclass) => class extends superclass {
       request.body.beforeId = beforeId
       request.record.beforeId = beforeId
     }
+
+    // give a chance to mixins to "see" the record before sending it
+    await this.beforeSend(request)
 
     // Return the record, including beforeId
     return request.record
@@ -223,6 +227,9 @@ const Mixin = (superclass) => class extends superclass {
 
     // After insert: post-processing of the record
     await this.afterDelete(request)
+
+    // give a chance to mixins to "see" the record before ending
+    await this.beforeSend(request)
   }
 
   // **************************************************
@@ -557,6 +564,9 @@ const Mixin = (superclass) => class extends superclass {
   afterDelete (request) {
   }
 
+  beforeSend (request, result) {
+  }
+
   queryConditionsAndArgs (request) {
     return this.optionsQueryConditionsAndArgs(request)
   }
@@ -660,12 +670,10 @@ const Mixin = (superclass) => class extends superclass {
           case 'dateTime':
             sqlType = 'DATETIME'
             break
-            
           case 'object':
           case 'array':
             sqlType = 'JSON'
             break
-              
           default:
             throw new Error(`${field.type} not converted automatically. Use dbType instead`)
         }
