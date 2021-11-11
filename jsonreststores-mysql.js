@@ -76,8 +76,8 @@ const Mixin = (superclass) => class extends superclass {
     // Make up a bogus request (just with request.params using insertId)
     // to re-fetch the record and return it
     // NOTE: request.params is all implementFetch uses
-    const requestWithId = this.copyRequest(request, { 
-      options: {}, 
+    const requestWithId = this.copyRequest(request, {
+      options: {},
       params: { [this.idProperty]: insertResult.insertId }
     })
 
@@ -330,7 +330,7 @@ const Mixin = (superclass) => class extends superclass {
     request.record = records[0]
 
     // Nothing was returned: there is no point in checking permissions,
-    // transform results, etc.: it will simply return null 
+    // transform results, etc.: it will simply return null
     if (!request.record) return null
 
     // Requested by the API: when implementing implementFetch, this function
@@ -840,8 +840,6 @@ const Mixin = (superclass) => class extends superclass {
       await this.connection.queryP(sqlQuery)
     }
 
-
-    debugger
     // Add db constraints
     for (let i = 0, l = dbConstraints.length; i < l; i++) {
       const dbc = dbConstraints[i]
