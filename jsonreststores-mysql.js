@@ -335,7 +335,7 @@ const Mixin = (superclass) => class extends superclass {
 
     // Requested by the API: when implementing implementFetch, this function
     // must be called when request.record is set
-    this.implementFetchPermissions(request)
+    await this.implementFetchPermissions(request)
 
     // Transform the record if necessary
     let transformed
