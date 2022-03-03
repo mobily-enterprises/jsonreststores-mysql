@@ -64,7 +64,7 @@ const Mixin = (superclass) => class extends superclass {
       }
     }
 
-    const insertObject = await this.manipulateInsertObject(request, {...request.body } ) // hook
+    const insertObject = await this.manipulateInsertObject(request, { ...request.body }) // hook
 
     // Run the query
     const query = await this.implementInsertSql()
@@ -147,7 +147,7 @@ const Mixin = (superclass) => class extends superclass {
     }
 
     // Make up the crucial variables for the update: object, joins, and conditions/args
-    const updateObject = await this.manipulateUpdateObject(request, {...request.body }) // hook
+    const updateObject = await this.manipulateUpdateObject(request, { ...request.body }) // hook
     const joins = await this.updateJoins(request) // hook
     let { conditions, args } = await this.updateConditionsAndArgs(request) // hook
 
@@ -662,7 +662,7 @@ const Mixin = (superclass) => class extends superclass {
             break
           case 'blob':
             if (field.length) length = field.length
-            sqlType = `${BLOB}(${length})`
+            sqlType = `BLOB(${length})`
             break
           case 'date':
             sqlType = 'DATE'
@@ -778,7 +778,7 @@ const Mixin = (superclass) => class extends superclass {
 
       // For searchable and dbIndex fields, add an index
       // Note: positionField is ALWAYS indexed
-      if (field.dbIndex || field.searchable || field.name === this.positionField ) {
+      if (field.dbIndex || field.searchable || field.name === this.positionField) {
         if (columnsHash[field.name] && field.name !== this.idProperty) {
           dbIndexes.push({
             column: field.name,
