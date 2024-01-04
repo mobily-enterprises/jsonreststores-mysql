@@ -757,7 +757,7 @@ const Mixin = (superclass) => class extends superclass {
     if (primaryKeyColumn) await maybeChangePrimaryKey.call(this, primaryKeyColumn)
 
     const dbIndexes = []
-    const dbConstraints = []
+    const foreignEndpoints = []
     for (let i = 0, l = schemaFieldsAsArray.length; i < l; i++) {
       const field = schemaFieldsAsArray[i]
 
@@ -788,14 +788,16 @@ const Mixin = (superclass) => class extends superclass {
         }
       }
 
-      if (field.dbConstraint) {
-        const dbc = field.dbConstraint
-        dbConstraints.push({
+      debugger
+      if (field.foreignEndpoint) {
+        const dbc = field.foreignEndpoint
+        foreignEndpoints.push({
           source: field.name,
           table: dbc.table,
           store: dbc.store,
           column: dbc.column,
-          name: dbc.name
+          name: dbc.name,
+          endpointName: dbc.endpointName
         })
       }
     }
@@ -841,8 +843,10 @@ const Mixin = (superclass) => class extends superclass {
     }
 
     // Add db constraints
-    for (let i = 0, l = dbConstraints.length; i < l; i++) {
-      const dbc = dbConstraints[i]
+    for (let i = 0, l = foreignEndpoints.length; i < l; i++) {
+      const dbc = foreignEndpoints[i]
+
+      if (!foreignEndpoints[i].addConstraint) continue
 
       let table
       let column
