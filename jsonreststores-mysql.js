@@ -858,16 +858,18 @@ const Mixin = (superclass) => class extends superclass {
       if (fe.constraintName) constraintName = fe.constraintName
       else constraintName = `jra_${fe.sourceField}_to_${foreignTable}_${foreignField}`
 
-      if (constraints.find(c => c.CONSTRAINT_NAME === constraintName)) return
-
+      if (constraints.find(c => c.CONSTRAINT_NAME === constraintName)) {
+        // await this.connection.queryP(`ALTER TABLE \`${this.table}\` DROP FOREIGN KEY \`${constraintName}\``)  
+        return
+      }
+      
       const sqlQuery = `
-      ALTER TABLE \`${this.table}\`
-      ADD CONSTRAINT \`${constraintName}\`
-      FOREIGN KEY (\`${fe.sourceField}\`)
-      REFERENCES \`${foreignTable}\` (\`${foreignField}\`)
+        ALTER TABLE \`${this.table}\`
+        ADD CONSTRAINT \`${constraintName}\`
+        FOREIGN KEY (\`${fe.sourceField}\`)
+        REFERENCES \`${foreignTable}\` (\`${foreignField}\`)
         ON DELETE NO ACTION
         ON UPDATE NO ACTION`
-
       await this.connection.queryP(sqlQuery)
     }
   }
