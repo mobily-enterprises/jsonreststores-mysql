@@ -788,16 +788,14 @@ const Mixin = (superclass) => class extends superclass {
         }
       }
 
-      debugger
       if (field.foreignEndpoint) {
-        const dbc = field.foreignEndpoint
+        const fe = field.foreignEndpoint
         foreignEndpoints.push({
-          source: field.name,
-          table: dbc.table,
-          store: dbc.store,
-          column: dbc.column,
-          name: dbc.name,
-          endpointName: dbc.endpointName
+          sourceField: field.name,
+          foreignEndpoint: fe.endpointName,
+          foreignTable: fe.foreignTable,
+          foreignField: fe.foreignField,
+          constraintName: fe.constraintName
         })
       }
     }
@@ -844,30 +842,29 @@ const Mixin = (superclass) => class extends superclass {
 
     // Add db constraints
     for (let i = 0, l = foreignEndpoints.length; i < l; i++) {
-      const dbc = foreignEndpoints[i]
+      const fe = foreignEndpoints[i]
 
-      if (!foreignEndpoints[i].addConstraint) continue
+      let foreignTable
+      let foreignField
+      let constraintName
 
-      let table
-      let column
-      let name
+      if (fe.foreignTable) foreignTable = fe.foreignTable
+      else if (fe.foreignEndpoint) foreignTable = this.stores[fe.foreignEndpoint].table
+      else throw new error('Cannot find the foreign table for field: ' + fe.name)
 
-      if (dbc.table) table = dbc.table
-      else if (dbc.store) table = this.stores[dbc.store].table
+      if (fe.foreignField) foreignField = fe.foreignField
+      else foreignField = this.stores[fe.foreignEndpoint].idProperty
 
-      if (dbc.column) column = dbc.column
-      else column = this.stores[dbc.store].idProperty
+      if (fe.constraintName) constraintName = fe.constraintName
+      else constraintName = `jra_${fe.sourceField}_to_${foreignTable}_${foreignField}`
 
-      if (dbc.name) name = dbc.name
-      else name = `jrs_${dbc.source}_to_${table}_${column}`
-
-      if (constraints.find(c => c.CONSTRAINT_NAME === name)) return
+      if (constraints.find(c => c.CONSTRAINT_NAME === constraintName)) return
 
       const sqlQuery = `
       ALTER TABLE \`${this.table}\`
-      ADD CONSTRAINT \`${name}\`
-      FOREIGN KEY (\`${dbc.source}\`)
-      REFERENCES \`${table}\` (\`${column}\`)
+      ADD CONSTRAINT \`${constraintName}\`
+      FOREIGN KEY (\`${fe.sourceField}\`)
+      REFERENCES \`${foreignTable}\` (\`${foreignField}\`)
         ON DELETE NO ACTION
         ON UPDATE NO ACTION`
 
